@@ -1,4 +1,6 @@
 import os
+from typing import List
+
 import numpy as np
 import pandas as pd
 import pickle
@@ -43,7 +45,7 @@ def get_all_training_csvs(task, feature):
     feature_dir = os.path.join(PATH_TO_FEATURES[task], feature)
     csvs = []
     for subject in tqdm(partition_to_subject['train']):
-        if task == 'stress':
+        if task == 'personalisation':
             csvs.append(os.path.join(feature_dir, f'{subject}.csv'))
         elif task == 'reaction':
             subject = subject[1:-1] 
@@ -168,7 +170,7 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
 
     feature_idx = 2
 
-    feature_path = PATH_TO_FEATURES['stress']
+    feature_path = PATH_TO_FEATURES['personalisation']
 
     feature_file = os.path.join(feature_path, feature, subject_id + '.csv')
     assert os.path.exists(
@@ -183,7 +185,7 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
     sample_data.append(feature_data)
 
     # parse labels
-    label_path = PATH_TO_LABELS['stress']
+    label_path = PATH_TO_LABELS['personalisation']
     label_file = os.path.join(label_path, emo_dim, subject_id + '.csv')
     assert os.path.exists(
         label_file), f'Error: no available "{emo_dim}" label file for video "{subject_id}": "{label_file}".'
@@ -214,7 +216,8 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
     for i, segment in enumerate(samples):  # each segment has columns: timestamp, segment_id, features, labels
         n_emo_dims = 1
         if len(segment.iloc[:, feature_idx:-n_emo_dims].values) > 0:  # check if there are features
-            meta = np.column_stack((np.array([int(subject_id)] * len(segment)),
+            # was int(subject_id) before...
+            meta = np.column_stack((np.array([subject_id] * len(segment)),
                                     segment.iloc[:, :feature_idx].values))  # video_id, timestamp, segment_id
             metas.append(meta)
             labels.append(segment.iloc[:, -n_emo_dims:].values)
@@ -266,7 +269,7 @@ def load_reaction_subject(feature, subject_id, normalizer):
 ################# LOAD DATASETS USING THE SPECIFIC METHODS ABOVE #############################################
 
 def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_len=100, save=False,
-              segment_train=True):
+              segment_train=True, ids:List[List[str]]=None):
     '''
     Loads the complete data sets
     :param task: task
@@ -278,6 +281,7 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
     :param hop_len: hop length for segmentation (ignored for humor - and reaction?)
     :param save: whether to cache the loaded data as .pickle
     :param segment_train: whether to do segmentation on the training data
+    :param ids: only consider these IDs (list of lists, three lists corresponding to train, devel, test)
     :return: dict with keys 'train', 'devel' and 'test', each in turn a dict with keys:
         feature: list of ndarrays shaped (seq_length, features)
         labels: corresponding list of ndarrays shaped (seq_length, 1) for n-to-n tasks like stress, (1,) for n-to-1
@@ -304,11 +308,12 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
 
     for partition, subject_ids in partition2subject.items():
         print(f'Setting up {partition} Partition') 
-
+        if ids:
+            subject_ids = [s for s in subject_ids if s in ids]
         apply_segmentation = segment_train and partition=='train'
 
         for subject_id in tqdm(subject_ids):
-            if task == 'stress':
+            if task == 'personalisation':
                 features, labels, metas = load_stress_subject(feature=feature, subject_id=subject_id,
                                                               partition=partition, emo_dim=emo_dim,
                                                               normalizer=normalizer,

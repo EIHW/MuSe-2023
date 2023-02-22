@@ -12,7 +12,7 @@ import config
 from utils import Logger, seed_worker, log_results
 from train import train_model
 from eval import evaluate, calc_ccc, calc_auc, mean_ccc,mean_pearsons 
-from model import Model
+from model import Model, TRANSFORMER_MODEL, RNN_MODEL
 from loss import CCCLoss, WrappedBCELoss, WrappedMSELoss
 from dataset import MuSeDataset, custom_collate_fn
 from data_parser import load_data
@@ -22,8 +22,8 @@ def parse_args():
 
     parser = argparse.ArgumentParser(description='MuSe 2022.')
 
-    parser.add_argument('--task', type=str, required=True, choices=['humor', 'reaction', 'stress'],
-                        help='Specify the task (humour, reaction, stress).')
+    parser.add_argument('--task', type=str, required=True, choices=['personalisation'],
+                        help='Specify the task (personalisation).')
     parser.add_argument('--feature', required=True,
                         help='Specify the features used (only one).')
     parser.add_argument('--emo_dim', default='physio-arousal',
@@ -34,7 +34,8 @@ def parse_args():
                         help='Specify the window length for segmentation (default: 200 frames).')
     parser.add_argument('--hop_len', type=int, default=100,
                         help='Specify the hop length to for segmentation (default: 100 frames).')
-    parser.add_argument('--d_rnn', type=int, default=64,
+    parser.add_argument('--model_type', choices=[RNN_MODEL, TRANSFORMER_MODEL], default=RNN_MODEL)
+    parser.add_argument('--model_dim', type=int, default=64,
                         help='Specify the number of hidden states in the RNN (default: 64).')
     parser.add_argument('--rnn_n_layers', type=int, default=1,
                         help='Specify the number of layers for the RNN (default: 1).')
@@ -44,6 +45,10 @@ def parse_args():
                         help='Specify the number of hidden neurons in the output layer (default: 64).')
     parser.add_argument('--rnn_dropout', type=float, default=0.2)
     parser.add_argument('--linear_dropout', type=float, default=0.5)
+    parser.add_argument('--trf_num_layers', type=int, default=2)
+    parser.add_argument('--trf_num_heads', type=int, default=2)
+    parser.add_argument('--trf_dropout', type=float, default=0.)
+    parser.add_argument('--trf_mask_windowing', type=int, default=5)
     parser.add_argument('--epochs', type=int, default=100,
                         help='Specify the number of epochs (default: 100).')
     parser.add_argument('--batch_size', type=int, default=256,
@@ -80,7 +85,7 @@ def parse_args():
 
 
 def get_loss_fn(task):
-    if task == 'stress':
+    if task == 'personalisation':
         return CCCLoss(), 'CCC'
     elif task == 'humor':
         return WrappedBCELoss(), 'Binary Crossentropy'
@@ -91,7 +96,7 @@ def get_loss_fn(task):
 
 
 def get_eval_fn(task):
-    if task == 'stress':
+    if task == 'personalisation':
         return calc_ccc, 'CCC'
     elif task == 'reaction':
         return mean_pearsons, 'Mean Pearsons'
@@ -105,7 +110,7 @@ def main(args):
     random.seed(10)
 
     # emo_dim only relevant for stress
-    args.emo_dim = args.emo_dim if args.task=='stress' else ''
+    args.emo_dim = args.emo_dim if args.task=='personalisation' else ''
     print('Loading data ...')
     data = load_data(args.task, args.paths, args.feature, args.emo_dim, args.normalize,
                      args.win_len, args.hop_len, save=args.cache)
@@ -194,11 +199,21 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
 
-    args.log_file_name = '{}_[{}]_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format(
+    # TODO adapt to transformer
+    if args.model_type == RNN_MODEL:
+        args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN',
         datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature, args.emo_dim,
-        args.d_rnn, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr, args.batch_size) if args.task == 'stress' else \
-        '{}_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format(datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature.replace(os.path.sep, "-"),
-                                                 args.d_rnn, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr,args.batch_size)
+        args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr, args.batch_size) if args.task == 'stress' else \
+        '{}_{}_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN', datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature.replace(os.path.sep, "-"),
+                                                 args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr,args.batch_size)
+    elif args.model_type == TRANSFORMER_MODEL:
+        args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}_{}]_[{}_{}]'.format('Transformer',
+            datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature, args.emo_dim,
+            args.model_dim, args.trf_num_layers, args.trf_num_heads, args.trf_mask_windowing, args.d_fc_out, args.lr,
+            args.batch_size) if args.task == 'stress' else \
+            '{}_{}_[{}]_[{}_{}_{}_{}_{}]_[{}_{}]'.format('Transformer', datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"),
+                                                   args.feature.replace(os.path.sep, "-"),
+                                                   args.model_dim, args.trf_num_layers, args.trf_num_heads, args.trf_mask_windowing, args.d_fc_out, args.lr, args.batch_size)
 
     # adjust your paths in config.py
     args.paths = {'log': os.path.join(config.LOG_FOLDER, args.task),

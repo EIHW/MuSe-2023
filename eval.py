@@ -147,7 +147,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
             write_predictions(task, full_metas, full_preds, prediction_path, filename)
             return
         else:
-            if task == 'stress':
+            if task == 'personalisation':
                 full_preds = flatten_stress_for_ccc(full_preds)
                 full_labels = flatten_stress_for_ccc(full_labels)
             score = eval_fn(full_preds, full_labels)
