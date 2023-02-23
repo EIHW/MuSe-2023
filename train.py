@@ -1,9 +1,14 @@
 import time
 import os
+from shutil import rmtree
+from typing import List, Dict
+
 import numpy as np
 import torch
 import torch.optim as optim
+from torch.utils.data import DataLoader
 
+from config import device
 from eval import evaluate
 
 
@@ -92,3 +97,46 @@ def train_model(task, model, data_loader, epochs, lr, model_path, current_seed, 
     print(f'Seed {current_seed} | '
           f'Best [Val {eval_metric_str}]:{best_val_score:>7.4f} | Loss: {best_val_loss:>.4f}')
     return best_val_loss, best_val_score, best_model_file
+
+
+def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataLoader]], subject_ids, epochs, lr, use_gpu, loss_fn, eval_fn,
+                eval_metric_str, early_stopping_patience, reduce_lr_patience, seeds, regularization=0.0):
+    # TODO seeds here?
+    if os.path.exists(temp_dir):
+        rmtree(temp_dir)
+    os.makedirs(temp_dir)
+    # current_seed maybe not the best parameter name here
+    initial_cp = save_model(model, model_folder=temp_dir, current_seed='initial')
+    best_model_files = []
+    for subject_id, data_loader in zip(subject_ids, data_loaders):
+        model = torch.load(initial_cp, map_location=device)
+        train_loader, val_loader, test_loader = data_loader['train'], data_loader['devel'], data_loader['test']
+        val_loss_before, val_score_before = evaluate('personalisation', model, val_loader, loss_fn=loss_fn, eval_fn=eval_fn, use_gpu=use_gpu)
+        print()
+        print(f'Personalising for {subject_id}')
+        print(f'Before personalisation | [Val] | Loss: {val_loss_before:>.4f} | [{eval_metric_str}]: {val_score_before:>7.4f}')
+
+        best_val_score = val_score_before
+        best_model_file = initial_cp
+
+        for seed in seeds:
+            print(f'Seed {seed}')
+            torch.manual_seed(seed)
+            np.random.seed(seed)
+            # reshuffling
+            train_loader = torch.utils.data.DataLoader(dataset=train_loader.dataset, batch_size=train_loader.batch_size,
+                                                       collate_fn=train_loader.collate_fn, shuffle=True)
+            _, seed_val_score, seed_model_file = train_model(model=model, task='personalisation', current_seed=subject_id, data_loader=data_loader,
+                                          epochs=epochs, lr=lr, model_path=temp_dir, use_gpu=use_gpu, loss_fn=loss_fn,
+                                          eval_fn=eval_fn, eval_metric_str=eval_metric_str,
+                                          early_stopping_patience=early_stopping_patience,
+                                          reduce_lr_patience=reduce_lr_patience, regularization=regularization)
+            if seed_val_score > best_val_score:
+                best_val_score = seed_val_score
+                best_model_file = seed_model_file
+
+        print(f'After personalisation {"- personalisation did not help" if best_val_score==val_score_before else ""} '
+              f'| [Val] '
+              f'| [{eval_metric_str}]: {best_val_score:>7.4f} (Difference {best_val_score - val_score_before:>.4f})')
+        best_model_files.append(best_model_file)
+    return {subject_id:best_model_file for subject_id,best_model_file in zip(subject_ids, best_model_files)}

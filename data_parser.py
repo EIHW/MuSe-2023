@@ -1,5 +1,5 @@
 import os
-from typing import List
+from typing import List, Dict
 
 import numpy as np
 import pandas as pd
@@ -269,7 +269,7 @@ def load_reaction_subject(feature, subject_id, normalizer):
 ################# LOAD DATASETS USING THE SPECIFIC METHODS ABOVE #############################################
 
 def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_len=100, save=False,
-              segment_train=True, ids:List[List[str]]=None):
+              segment_train=True, ids:Dict[str, List[str]]=None, data_file_suffix=None):
     '''
     Loads the complete data sets
     :param task: task
@@ -281,7 +281,8 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
     :param hop_len: hop length for segmentation (ignored for humor - and reaction?)
     :param save: whether to cache the loaded data as .pickle
     :param segment_train: whether to do segmentation on the training data
-    :param ids: only consider these IDs (list of lists, three lists corresponding to train, devel, test)
+    :param ids: only consider these IDs (map 'train', 'devel', 'test' to list of ids)
+    :param data_file_suffix: optional suffix for data file, may be useful for personalisation
     :return: dict with keys 'train', 'devel' and 'test', each in turn a dict with keys:
         feature: list of ndarrays shaped (seq_length, features)
         labels: corresponding list of ndarrays shaped (seq_length, 1) for n-to-n tasks like stress, (1,) for n-to-1
@@ -290,7 +291,7 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
     '''
 
     data_file_name = f'data_{task}_{feature}_{emo_dim+"_" if len(emo_dim)>0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
-        f'{hop_len}{"_seg" if segment_train else ""}.pkl'
+        f'{hop_len}{"_seg" if segment_train else ""}{f"_{data_file_suffix}" if data_file_suffix else ""}.pkl'
     data_file = os.path.join(paths['data'], data_file_name)
 
     if os.path.exists(data_file):  # check if file of preprocessed data exists
@@ -309,7 +310,7 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
     for partition, subject_ids in partition2subject.items():
         print(f'Setting up {partition} Partition') 
         if ids:
-            subject_ids = [s for s in subject_ids if s in ids]
+            subject_ids = [s for s in subject_ids if s in ids[partition]]
         apply_segmentation = segment_train and partition=='train'
 
         for subject_id in tqdm(subject_ids):
@@ -335,3 +336,35 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
         pickle.dump(data, open(data_file, 'wb'))
 
     return data
+
+
+def load_personalisation_data(paths, feature, emo_dim, normalize=True, win_len=200, hop_len=100, save=True,
+              segment_train=True):
+    data_file_name = f'data_personalisation_2nd_stage_{feature}_{emo_dim + "_" if len(emo_dim) > 0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
+                     f'{hop_len}{"_seg" if segment_train else ""}.pkl'
+    data_file = os.path.join(paths['data'], data_file_name)
+
+    if os.path.exists(data_file):  # check if file of preprocessed data exists
+        print(f'Find cached data "{os.path.basename(data_file)}".')
+        data, test_ids = pickle.load(open(data_file, 'rb'))
+        return data, test_ids
+
+    data = []
+    test_ids = []
+    _, partition2subject = get_data_partition(paths['partition'])
+    test_subjects = partition2subject['test']
+    for test_subject in test_subjects:
+        # 1_test -> 1
+        subject_nr = test_subject.split("_")[0]
+        data.append(load_data(task='personalisation', feature=feature, emo_dim=emo_dim, normalize=normalize,
+                              win_len=win_len, hop_len=hop_len, save=False, segment_train=segment_train,
+                              ids=({'train': [f'{subject_nr}_train'], 'devel': [f'{subject_nr}_devel'],
+                                    'test': [f'{subject_nr}_test']}),
+                              paths=paths))
+        test_ids.append(subject_nr)
+
+    if save:
+        print('Saving data...')
+        pickle.dump((data, test_ids), open(data_file, 'wb'))
+
+    return data, test_ids

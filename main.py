@@ -1,6 +1,9 @@
 import argparse
 import os
 import sys
+from shutil import rmtree
+
+import numpy as np
 import torch
 import numpy
 import random
@@ -10,12 +13,12 @@ from dateutil import tz
 import config
 
 from utils import Logger, seed_worker, log_results
-from train import train_model
-from eval import evaluate, calc_ccc, calc_auc, mean_ccc,mean_pearsons 
+from train import train_model, train_personalised_models
+from eval import evaluate, calc_ccc, calc_auc, mean_ccc, mean_pearsons, get_predictions
 from model import Model, TRANSFORMER_MODEL, RNN_MODEL
 from loss import CCCLoss, WrappedBCELoss, WrappedMSELoss
 from dataset import MuSeDataset, custom_collate_fn
-from data_parser import load_data
+from data_parser import load_data, load_personalisation_data
 
 
 def parse_args():
@@ -109,7 +112,7 @@ def main(args):
     numpy.random.seed(10)
     random.seed(10)
 
-    # emo_dim only relevant for stress
+    # emo_dim only relevant for stress/personalisation
     args.emo_dim = args.emo_dim if args.task=='personalisation' else ''
     print('Loading data ...')
     data = load_data(args.task, args.paths, args.feature, args.emo_dim, args.normalize,
@@ -117,7 +120,7 @@ def main(args):
     data_loader = {}
     for partition in data.keys():  # one DataLoader for each partition
         set = MuSeDataset(data, partition)
-        batch_size = args.batch_size if partition == 'train' else (1 if args.task=='stress' else 2*args.batch_size)
+        batch_size = args.batch_size if partition == 'train' else (1 if args.task=='personalisation' else 2*args.batch_size)
         shuffle = True if partition == 'train' else False  # shuffle only for train partition
         data_loader[partition] = torch.utils.data.DataLoader(set, batch_size=batch_size, shuffle=shuffle, num_workers=4,
                                                              worker_init_fn=seed_worker, collate_fn=custom_collate_fn)
@@ -151,6 +154,7 @@ def main(args):
                                                                reduce_lr_patience=args.reduce_lr_patience)
             # restore best model encountered during training
             model = torch.load(best_model_file)
+
             if not args.predict:  # run evaluation only if test labels are available
                 test_loss, test_score = evaluate(args.task, model, data_loader['test'], loss_fn=loss_fn,
                                                  eval_fn=eval_fn, use_gpu=args.use_gpu)

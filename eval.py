@@ -100,6 +100,36 @@ def write_predictions(task, full_metas, full_preds, prediction_path, filename):
     prediction_df.to_csv(os.path.join(prediction_path, filename), index=False)
 
 
+def get_predictions(model, task, data_loader, use_gpu=False):
+    full_preds = []
+    full_labels = []
+    model.eval()
+    with torch.no_grad():
+        for batch, batch_data in enumerate(data_loader, 1):
+            features, feature_lens, labels, metas = batch_data
+
+            batch_size = features.size(0) if task != 'personalisation' else 1
+
+            if use_gpu:
+                model.cuda()
+                features = features.cuda()
+                feature_lens = feature_lens.cuda()
+                labels = labels.cuda()
+
+            preds = model(features, feature_lens)
+
+            # only relevant for stress
+            feature_lens = feature_lens.detach().cpu().tolist()
+            cutoff = feature_lens[0] if task == 'personalisation' else batch_size
+
+            full_labels.append(labels.cpu().detach().squeeze().numpy().tolist()[:cutoff])
+            full_preds.append(preds.cpu().detach().squeeze().numpy().tolist()[:cutoff])
+    if task == 'personalisation':
+        full_preds = flatten_personalisation_for_ccc(full_preds)
+        full_labels = flatten_personalisation_for_ccc(full_labels)
+    return full_labels, full_preds
+
+
 def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=False, prediction_path=None,
              filename=None):
     losses, sizes = 0, 0
@@ -114,12 +144,12 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
     with torch.no_grad():
         for batch, batch_data in enumerate(data_loader, 1):
             features, feature_lens, labels, metas = batch_data
-            if predict is not True:
+            if not predict:
                 if torch.any(torch.isnan(labels)):
                     print('No labels available, no evaluation')
                     return np.nan, np.nan
 
-            batch_size = features.size(0) if task != 'stress' else 1
+            batch_size = features.size(0) if task != 'personalisation' else 1
 
             if use_gpu:
                 model.cuda()
@@ -131,7 +161,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
 
             # only relevant for stress
             feature_lens = feature_lens.detach().cpu().tolist()
-            cutoff = feature_lens[0] if task == 'stress' else batch_size
+            cutoff = feature_lens[0] if task == 'personalisation' else batch_size
             if predict:
                 full_metas.append(metas.tolist()[:cutoff])
 
@@ -148,14 +178,14 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
             return
         else:
             if task == 'personalisation':
-                full_preds = flatten_stress_for_ccc(full_preds)
-                full_labels = flatten_stress_for_ccc(full_labels)
+                full_preds = flatten_personalisation_for_ccc(full_preds)
+                full_labels = flatten_personalisation_for_ccc(full_labels)
             score = eval_fn(full_preds, full_labels)
             total_loss = losses / sizes
             return total_loss, score
 
 
-def flatten_stress_for_ccc(lst):
+def flatten_personalisation_for_ccc(lst):
     '''
     Brings full_preds and full_labels of stress into the right format for the CCC function
     :param lst: list of lists of different lengths
