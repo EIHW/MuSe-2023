@@ -53,6 +53,8 @@ def parse_args():
                         help='L2-Penalty')
     parser.add_argument('--result_csv', default=None, help='Append the results to this csv (or create it, if it '
                                                            'does not exist yet). Incompatible with --predict')
+    parser.add_argument('--keep_checkpoints', action='store_true', help='Set this in order *not* to delete all the '
+                                                                        'personalised checkpoints')
 
     args = parser.parse_args()
     args.timestamp = datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M-%S")
@@ -159,6 +161,7 @@ def log_personalisation_results(csv_path, params, val_score, test_score, metric_
 if __name__ == '__main__':
     args = parse_args()
     model = torch.load(args.model_file)
+
     pers_dir = os.path.join(config.MODEL_FOLDER, 'personalisation', args.model_id,
                             f'{args.checkpoint_seed}_personalised_{args.timestamp}')
     os.makedirs(pers_dir)
@@ -175,4 +178,6 @@ if __name__ == '__main__':
         log_personalisation_results(args.result_csv, params=args, metric_name=eval_metric_str, val_score=val_score,
                                     test_score=test_score)
 
+    if not args.keep_checkpoints:
+        rmtree(pers_dir)
 

@@ -1,14 +1,15 @@
 import os
-from typing import List, Dict
+from typing import List, Dict, Optional, Union
 
 import numpy as np
 import pandas as pd
 import pickle
 from glob import glob
-from tqdm import tqdm 
+from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
 
 from config import PATH_TO_FEATURES, PATH_TO_LABELS, PARTITION_FILES
+
 
 ################# GLOBAL UTILITY METHODS #############################################
 
@@ -48,7 +49,7 @@ def get_all_training_csvs(task, feature):
         if task == 'personalisation':
             csvs.append(os.path.join(feature_dir, f'{subject}.csv'))
         elif task == 'reaction':
-            subject = subject[1:-1] 
+            subject = subject[1:-1]
             csvs.append(os.path.join(feature_dir, f'{subject}.csv'))
         elif task == 'humor':
             csvs.extend(sorted(glob(os.path.join(feature_dir, subject, "*.csv"))))
@@ -67,13 +68,13 @@ def fit_normalizer(task, feature, feature_idx=2):
     '''
     # load training subjects
     training_csvs = get_all_training_csvs(task, feature)
-    if task == 'reaction': 
-        print('Concatenating csvs') 
-        df = pd.concat([pd.read_csv(training_csv) for training_csv in tqdm(training_csvs)]) 
+    if task == 'reaction':
+        print('Concatenating csvs')
+        df = pd.concat([pd.read_csv(training_csv) for training_csv in tqdm(training_csvs)])
     else:
         df = pd.concat([pd.read_csv(training_csv) for training_csv in training_csvs])
-    values = df.iloc[:,feature_idx:].values
-    print(f'Scaling values') 
+    values = df.iloc[:, feature_idx:].values
+    print(f'Scaling values')
     normalizer = StandardScaler().fit(values)
     return normalizer
 
@@ -104,22 +105,23 @@ def load_humor_subject(feature, subject_id, normalizer):
     feature_path = PATH_TO_FEATURES['humor']
 
     feature_files = sorted(glob(os.path.join(feature_path, feature, subject_id + '/*.csv')))
-    assert len(feature_files) > 0, f'Error: no available "{feature}" feature files for coach "{subject_id}": "{feature_files}".'
+    assert len(
+        feature_files) > 0, f'Error: no available "{feature}" feature files for coach "{subject_id}": "{feature_files}".'
     feature_df = pd.concat([pd.read_csv(feature_file) for feature_file in feature_files])
     if not (normalizer is None):
-        feature_values = feature_df.iloc[:,feature_idx:].values
-        feature_df.iloc[:,feature_idx:] = normalizer.transform(feature_values)
+        feature_values = feature_df.iloc[:, feature_idx:].values
+        feature_df.iloc[:, feature_idx:] = normalizer.transform(feature_values)
     feature_dim = len(feature_df.columns) - feature_idx
 
     # load features for each label
     features = []
-    for _,y in label_df.iterrows():
+    for _, y in label_df.iterrows():
         start = y['timestamp_start']
         end = y['timestamp_end']
         segment_id = y['segment_id']
         segment_features = feature_df[feature_df.segment_id == segment_id]
         label_features = segment_features[(segment_features.timestamp >= start) &
-                                              (segment_features.timestamp < end)].iloc[:,feature_idx:].values
+                                          (segment_features.timestamp < end)].iloc[:, feature_idx:].values
         # imputation?
         if label_features.shape[0] == 0:
             label_features = np.zeros((1, feature_dim))
@@ -127,8 +129,8 @@ def load_humor_subject(feature, subject_id, normalizer):
 
     # store
     # expand for compatibility with the dataset class
-    labels = np.expand_dims(label_df.iloc[:,-1].values, -1)
-    metas = np.expand_dims(label_df.iloc[:,:-1].values, 1)
+    labels = np.expand_dims(label_df.iloc[:, -1].values, -1)
+    metas = np.expand_dims(label_df.iloc[:, :-1].values, 1)
 
     return features, labels, metas
 
@@ -150,7 +152,7 @@ def segment_stress(sample, win_len, hop_len):
 
 
 def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, apply_segmentation=True,
-                win_len=200, hop_len=100):
+                        win_len=200, hop_len=100):
     '''
     Loads data for a single subject for the stress task
     :param feature: feature name
@@ -174,14 +176,14 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
 
     feature_file = os.path.join(feature_path, feature, subject_id + '.csv')
     assert os.path.exists(
-            feature_file), f'Error: no available "{feature}" feature file for video "{subject_id}": "{feature_file}".'
+        feature_file), f'Error: no available "{feature}" feature file for video "{subject_id}": "{feature_file}".'
     feature_data = pd.read_csv(feature_file)
     feature_dim = feature_data.shape[1] - feature_idx
 
-    feature_values = feature_data.iloc[:,-feature_dim:].values
-    if not(normalizer is None):
-        feature_data.iloc[:,-feature_dim:] = normalizer.transform(feature_values)
-    feature_data.iloc[:,-feature_dim:] = np.nan_to_num(feature_values)
+    feature_values = feature_data.iloc[:, -feature_dim:].values
+    if not (normalizer is None):
+        feature_data.iloc[:, -feature_dim:] = normalizer.transform(feature_values)
+    feature_data.iloc[:, -feature_dim:] = np.nan_to_num(feature_data.iloc[:, -feature_dim:].values)
     sample_data.append(feature_data)
 
     # parse labels
@@ -249,27 +251,28 @@ def load_reaction_subject(feature, subject_id, normalizer):
     # parse labels
     label_path = PATH_TO_LABELS['reaction']
     label_df = pd.read_csv(os.path.join(label_path, 'labels.csv'))
-    labels = label_df[label_df.File_ID==subject_id].iloc[:,1:].values
-    assert labels.shape == (1,7), f"Malformed label file for ID {subject_id}"
+    labels = label_df[label_df.File_ID == subject_id].iloc[:, 1:].values
+    assert labels.shape == (1, 7), f"Malformed label file for ID {subject_id}"
 
     feature_path = os.path.join(PATH_TO_FEATURES['reaction'], feature)
-    feature_df = pd.read_csv(os.path.join(feature_path, f'{subject_id.replace("[","").replace("]","")}.csv')) 
+    feature_df = pd.read_csv(os.path.join(feature_path, f'{subject_id.replace("[", "").replace("]", "")}.csv'))
 
     feature_idx = 2
-    features = feature_df.iloc[:,feature_idx:].values
+    features = feature_df.iloc[:, feature_idx:].values
     if not (normalizer is None):
         features = normalizer.transform(features)
     features = [features]
 
-    metas = np.array([subject_id]).reshape((1,1,1))
+    metas = np.array([subject_id]).reshape((1, 1, 1))
 
     return features, labels, metas
 
 
 ################# LOAD DATASETS USING THE SPECIFIC METHODS ABOVE #############################################
 
-def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_len=100, save=False,
-              segment_train=True, ids:Dict[str, List[str]]=None, data_file_suffix=None):
+def load_data(task, paths, feature, emo_dim, normalize: Optional[Union[bool, StandardScaler]] = True, win_len=200,
+              hop_len=100, save=False,
+              segment_train=True, ids: Dict[str, List[str]] = None, data_file_suffix=None):
     '''
     Loads the complete data sets
     :param task: task
@@ -290,8 +293,8 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
         meta: corresponding list of ndarrays shaped (seq_length, metadata_dim) where seq_length=1 for n-to-1/n-to-7
     '''
 
-    data_file_name = f'data_{task}_{feature}_{emo_dim+"_" if len(emo_dim)>0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
-        f'{hop_len}{"_seg" if segment_train else ""}{f"_{data_file_suffix}" if data_file_suffix else ""}.pkl'
+    data_file_name = f'data_{task}_{feature}_{emo_dim + "_" if len(emo_dim) > 0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
+                     f'{hop_len}{"_seg" if segment_train else ""}{f"_{data_file_suffix}" if data_file_suffix else ""}.pkl'
     data_file = os.path.join(paths['data'], data_file_name)
 
     if os.path.exists(data_file):  # check if file of preprocessed data exists
@@ -304,14 +307,21 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
             'devel': {'feature': [], 'label': [], 'meta': []},
             'test': {'feature': [], 'label': [], 'meta': []}}
     subject2partition, partition2subject = get_data_partition(paths['partition'])
-    print('Normalising data') if normalize else None 
-    normalizer = fit_normalizer(task=task, feature=feature) if normalize else None
+    print('Normalising data') if normalize else None
+    if not(normalize is None):
+        if type(normalize) == bool:
+                normalizer = fit_normalizer(task=task, feature=feature) if normalize else None
+        else:
+            # in this case, normalize is already a scaler
+            normalizer = normalize
+    else:
+        normalizer = None
 
     for partition, subject_ids in partition2subject.items():
-        print(f'Setting up {partition} Partition') 
+        print(f'Setting up {partition} Partition')
         if ids:
             subject_ids = [s for s in subject_ids if s in ids[partition]]
-        apply_segmentation = segment_train and partition=='train'
+        apply_segmentation = segment_train and partition == 'train'
 
         for subject_id in tqdm(subject_ids):
             if task == 'personalisation':
@@ -339,7 +349,7 @@ def load_data(task, paths, feature, emo_dim, normalize=True, win_len=200, hop_le
 
 
 def load_personalisation_data(paths, feature, emo_dim, normalize=True, win_len=200, hop_len=100, save=True,
-              segment_train=True):
+                              segment_train=True):
     data_file_name = f'data_personalisation_2nd_stage_{feature}_{emo_dim + "_" if len(emo_dim) > 0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
                      f'{hop_len}{"_seg" if segment_train else ""}.pkl'
     data_file = os.path.join(paths['data'], data_file_name)
@@ -349,6 +359,8 @@ def load_personalisation_data(paths, feature, emo_dim, normalize=True, win_len=2
         data, test_ids = pickle.load(open(data_file, 'rb'))
         return data, test_ids
 
+    normalizer = fit_normalizer('personalisation', feature) if normalize else None
+
     data = []
     test_ids = []
     _, partition2subject = get_data_partition(paths['partition'])
@@ -356,7 +368,7 @@ def load_personalisation_data(paths, feature, emo_dim, normalize=True, win_len=2
     for test_subject in test_subjects:
         # 1_test -> 1
         subject_nr = test_subject.split("_")[0]
-        data.append(load_data(task='personalisation', feature=feature, emo_dim=emo_dim, normalize=normalize,
+        data.append(load_data(task='personalisation', feature=feature, emo_dim=emo_dim, normalize=normalizer,
                               win_len=win_len, hop_len=hop_len, save=False, segment_train=segment_train,
                               ids=({'train': [f'{subject_nr}_train'], 'devel': [f'{subject_nr}_devel'],
                                     'test': [f'{subject_nr}_test']}),

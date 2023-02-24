@@ -112,6 +112,7 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
         model = torch.load(initial_cp, map_location=device)
         train_loader, val_loader, test_loader = data_loader['train'], data_loader['devel'], data_loader['test']
         val_loss_before, val_score_before = evaluate('personalisation', model, val_loader, loss_fn=loss_fn, eval_fn=eval_fn, use_gpu=use_gpu)
+        model.train()
         print()
         print(f'Personalising for {subject_id}')
         print(f'Before personalisation | [Val] | Loss: {val_loss_before:>.4f} | [{eval_metric_str}]: {val_score_before:>7.4f}')
