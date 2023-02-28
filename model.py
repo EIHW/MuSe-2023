@@ -76,7 +76,7 @@ class RNN(nn.Module):
     # TODO parameters just as args object
     def __init__(self, d_in, d_out, n_layers=1, bi=True, dropout=0.2, n_to_1=False):
         super(RNN, self).__init__()
-        self.rnn = nn.LSTM(input_size=d_in, hidden_size=d_out, bidirectional=bi, num_layers=n_layers, dropout=dropout)
+        self.rnn = nn.GRU(input_size=d_in, hidden_size=d_out, bidirectional=bi, num_layers=n_layers, dropout=dropout)
         self.n_layers = n_layers
         self.d_out = d_out
         self.n_directions = 2 if bi else 1
