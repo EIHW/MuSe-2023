@@ -6,46 +6,56 @@ import torch
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # adjust your paths here. Recommended to keep it that way in order not to run into git conflicts
-#BASE_PATH = os.path.join(Path(__file__).parent.parent, 'MuSe-2023', 'packages')
-BASE_PATH = '/home/lukas/Desktop/nas/data_work/LukasChrist/MuSe-2023/packages'
+BASE_PATH = os.path.join(Path(__file__).parent.parent, 'MuSe-2023', 'packages')
+#BASE_PATH = '/home/lukas/Desktop/nas/data_work/LukasChrist/MuSe-2023/packages'
+
+MIMIC = 'mimic'
+HUMOR = 'humor'
+PERSONALISATION = 'personalisation'
+TASKS = [MIMIC, HUMOR, PERSONALISATION]
 
 PATH_TO_FEATURES = {
-    #'humor': os.path.join(BASE_PATH, 'c1_muse_humor/feature_segments'),
-    #'reaction': os.path.join(BASE_PATH, 'c2_muse_reaction/feats'),
-    'personalisation': os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/feature_segments')
+    MIMIC: os.path.join(BASE_PATH, 'c1_muse_mimic/feats'),
+    HUMOR: os.path.join(BASE_PATH, 'c2_muse_humor/feature_segments'),
+    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/feature_segments')
 }
 
 # humor is labelled every 2s, but features are extracted every 500ms
-N_TO_1_TASKS = {'humor', 'reaction'}
+N_TO_1_TASKS = {HUMOR, MIMIC}
 
 ACTIVATION_FUNCTIONS = {
-    'humor': torch.nn.Sigmoid,
-    'reaction': torch.nn.Sigmoid,
-    'personalisation':torch.nn.Tanh
+    HUMOR: torch.nn.Sigmoid,
+    MIMIC: torch.nn.Sigmoid,
+    PERSONALISATION:torch.nn.Tanh
 }
 
 NUM_TARGETS = {
-    'humor': 1,
-    'reaction': 7,
-    'personalisation': 1
+    HUMOR: 1,
+    MIMIC: 4,
+    PERSONALISATION: 1
 }
 
 
 PATH_TO_LABELS = {
-    'humor': os.path.join(BASE_PATH, 'c1_muse_humor/label_segments'),
-    'reaction': os.path.join(BASE_PATH, 'c2_muse_reaction'),
-    'personalisation': os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/label_segments')
+    MIMIC: os.path.join(BASE_PATH, 'c1_muse_mimic'),
+    HUMOR: os.path.join(BASE_PATH, 'c2_muse_humor/label_segments'),
+    # TODO adapt to non-confidential
+    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/label_segments')
 }
 
 PATH_TO_METADATA = {
-    'humor': os.path.join(BASE_PATH, 'c1_muse_humor/metadata'),
-    'reaction':os.path.join(BASE_PATH, 'c2_muse_reaction'),
-    'personalisation': os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/metadata')
+    MIMIC:os.path.join(BASE_PATH, 'c1_muse_mimic'),
+    HUMOR: os.path.join(BASE_PATH, 'c2_muse_humor/metadata'),
+    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/metadata')
 }
 
 PARTITION_FILES = {task: os.path.join(path_to_meta, 'partition.csv') for task,path_to_meta in PATH_TO_METADATA.items()}
 
-REACTION_LABELS = ['Adoration', 'Amusement', 'Anxiety', 'Disgust', 'Empathic-Pain', 'Fear', 'Surprise']
+MIMIC_LABELS = ['Approval', 'Rejection', 'Uncertainty', 'Disappointment']
+
+AROUSAL = 'physio-arousal'
+VALENCE = 'valence'
+PERSONALISATION_DIMS = [AROUSAL, VALENCE]
 
 OUTPUT_PATH = os.path.join(BASE_PATH, 'results')
 LOG_FOLDER = os.path.join(OUTPUT_PATH, 'log_muse')

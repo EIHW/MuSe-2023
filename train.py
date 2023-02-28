@@ -8,7 +8,7 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 
-from config import device
+from config import device, PERSONALISATION
 from eval import evaluate
 
 
@@ -101,7 +101,6 @@ def train_model(task, model, data_loader, epochs, lr, model_path, current_seed, 
 
 def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataLoader]], subject_ids, epochs, lr, use_gpu, loss_fn, eval_fn,
                 eval_metric_str, early_stopping_patience, reduce_lr_patience, seeds, regularization=0.0):
-    # TODO seeds here?
     if os.path.exists(temp_dir):
         rmtree(temp_dir)
     os.makedirs(temp_dir)
@@ -111,7 +110,7 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
     for subject_id, data_loader in zip(subject_ids, data_loaders):
         model = torch.load(initial_cp, map_location=device)
         train_loader, val_loader, test_loader = data_loader['train'], data_loader['devel'], data_loader['test']
-        val_loss_before, val_score_before = evaluate('personalisation', model, val_loader, loss_fn=loss_fn, eval_fn=eval_fn, use_gpu=use_gpu)
+        val_loss_before, val_score_before = evaluate(PERSONALISATION, model, val_loader, loss_fn=loss_fn, eval_fn=eval_fn, use_gpu=use_gpu)
         model.train()
         print()
         print(f'Personalising for {subject_id}')
@@ -127,7 +126,7 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
             # reshuffling
             train_loader = torch.utils.data.DataLoader(dataset=train_loader.dataset, batch_size=train_loader.batch_size,
                                                        collate_fn=train_loader.collate_fn, shuffle=True)
-            _, seed_val_score, seed_model_file = train_model(model=model, task='personalisation', current_seed=subject_id, data_loader=data_loader,
+            _, seed_val_score, seed_model_file = train_model(model=model, task=PERSONALISATION, current_seed=subject_id, data_loader=data_loader,
                                           epochs=epochs, lr=lr, model_path=temp_dir, use_gpu=use_gpu, loss_fn=loss_fn,
                                           eval_fn=eval_fn, eval_metric_str=eval_metric_str,
                                           early_stopping_patience=early_stopping_patience,

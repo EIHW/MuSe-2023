@@ -9,11 +9,10 @@ import torch
 from glob import glob
 from tqdm import tqdm
 
-from config import MODEL_FOLDER, device, PATH_TO_FEATURES
-
+from config import MODEL_FOLDER, device, PATH_TO_FEATURES, TASKS, PERSONALISATION
 
 parser = ArgumentParser()
-parser.add_argument('--task', type=str, required=True, choices=['humor', 'reaction', 'stress'])
+parser.add_argument('--task', type=str, required=True, choices=TASKS)
 parser.add_argument('--model_ids', nargs='+', required=True, help='model ids')
 parser.add_argument('--aliases', nargs='+', default=None, help='Preferably shorter aliases for the model ids. '
                                                                'Optional, script will take the feature names by default.')
@@ -37,10 +36,11 @@ def parse_args():
     for m in args.model_ids:
         split_name = [x.replace("]","").replace("[","") for x in m.split("_")]
         features.append(split_name[1])
-        dims.append(split_name[2] if args.task=='stress' else None)
+        dims.append(split_name[2] if args.task==PERSONALISATION else None)
         if args.aliases is None:
             aliases.append(split_name[1])
 
+        # TODO adapt to Transformers
         model_configs.append({
             'd_rnn': int(split_name[-6]),
             'rnn_n_layers': int(split_name[-5]),
@@ -71,13 +71,13 @@ def infer_feature_dim(task, feature_name, feature_idx=2):
 
 
 def predictions_for_csv(csv, model, feature_idx=2):
-    '''
+    """
     Extracts model predictions, given a feature csv and a model
     :param csv: feature csv
     :param model: model
     :param feature_idx: position where the features start in the csv
-    :return: numpy array (len(csv), pred_dim) where pred_dim == 1 for stress and humor, 7 for reaction
-    '''
+    :return: numpy array (len(csv), pred_dim) where pred_dim == 1 for personalisation and humor, 4 for vidmimic
+    """
     model.set_n_to_1(False)
     model.to(device)
     model.eval()
@@ -125,7 +125,7 @@ def main(args, feature_idx=2):
                 dct.update({col:values})
             df = pd.DataFrame(dct)
             # hack for alignment, so that the join does not change the length
-            if args.task == 'stress':
+            if args.task == PERSONALISATION:
                 if df.timestamp.values[0] == 0:
                     df.timestamp = df.timestamp.values + 500
 

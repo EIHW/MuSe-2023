@@ -31,7 +31,7 @@ class MuSeDataset(Dataset):
 
         features = [np.pad(f, pad_width=((0, max_feature_len-f.shape[0]),(0,0))) for f in features]
         self.features = [torch.tensor(f, dtype=torch.float) for f in features]
-        # if n-to-n task like stress
+        # if n-to-n task like personalisation
         if max_label_len > 1:
             labels = [np.pad(l, pad_width=((0, max_label_len-l.shape[0]),(0,0))) for l in labels]
         self.labels = [torch.tensor(l, dtype=torch.float) for l in labels]
@@ -47,7 +47,7 @@ class MuSeDataset(Dataset):
         return self.n_samples
 
     def __getitem__(self, idx):
-        '''
+        """
 
         :param idx:
         :return: feature, feature_len, label, meta with
@@ -55,7 +55,7 @@ class MuSeDataset(Dataset):
             feature_len: int tensor, length of the feature tensor before padding
             label: tensor of corresponding label(s) (shape 1 for n-to-1, else (seq_len,1))
             meta: list of lists containing corresponding meta data
-        '''
+        """
         feature = self.features[idx]
         feature_len = self.feature_lens[idx]
         label = self.labels[idx]
@@ -66,11 +66,11 @@ class MuSeDataset(Dataset):
 
 
 def custom_collate_fn(data):
-    '''
+    """
     Custom collate function to ensure that the meta data are not treated with standard collate, but kept as ndarrays
     :param data:
     :return:
-    '''
+    """
     tensors = [d[:3] for d in data]
     np_arrs = [d[3] for d in data]
     coll_features, coll_feature_lens, coll_labels = default_collate(tensors)

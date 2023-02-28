@@ -11,6 +11,7 @@ import numpy as np
 import torch
 
 import config
+from config import AROUSAL, PERSONALISATION_DIMS, PERSONALISATION
 from data_parser import load_personalisation_data
 from dataset import MuSeDataset, custom_collate_fn
 from eval import get_predictions
@@ -22,8 +23,8 @@ from utils import seed_worker, log_results
 def parse_args():
     parser = ArgumentParser()
     parser.add_argument('--model_id', required=True, help='model id')
-    parser.add_argument('--emo_dim', default='physio-arousal',
-                        help='Specify the emotion dimension, only relevant for stress (default: arousal).')
+    parser.add_argument('--emo_dim', default=AROUSAL, choices=PERSONALISATION_DIMS,
+                        help=f'Specify the emotion dimension, (default: {AROUSAL}).')
     parser.add_argument('--name', type=str, default=None, help='Optional name for the new "feature set". If not given,'
                                                                'name will be calculated from the aliases.')
     parser.add_argument('--checkpoint_seed', required=True, help='Checkpoints to use, e.g. '
@@ -55,21 +56,22 @@ def parse_args():
                                                            'does not exist yet). Incompatible with --predict')
     parser.add_argument('--keep_checkpoints', action='store_true', help='Set this in order *not* to delete all the '
                                                                         'personalised checkpoints')
+    # TODO add eval logic
 
     args = parser.parse_args()
     args.timestamp = datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M-%S")
     args.run_name = f'{args.model_id}_{args.checkpoint_seed}_personalisation_{args.timestamp}'
     args.log_file_name = args.run_name
-    args.paths = {'log': os.path.join(config.LOG_FOLDER, 'personalisation'),
-                  'data': os.path.join(config.DATA_FOLDER, 'personalisation'),
-                  'model': os.path.join(config.MODEL_FOLDER, 'personalisation', args.log_file_name)}
+    args.paths = {'log': os.path.join(config.LOG_FOLDER, PERSONALISATION),
+                  'data': os.path.join(config.DATA_FOLDER, PERSONALISATION),
+                  'model': os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.log_file_name)}
     for folder in args.paths.values():
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
-    args.paths.update({'features': config.PATH_TO_FEATURES['personalisation'],
-                       'labels': config.PATH_TO_LABELS['personalisation'],
-                       'partition': config.PARTITION_FILES['personalisation']})
-    args.model_file = os.path.join(config.MODEL_FOLDER, 'personalisation', args.model_id,
+    args.paths.update({'features': config.PATH_TO_FEATURES[PERSONALISATION],
+                       'labels': config.PATH_TO_LABELS[PERSONALISATION],
+                       'partition': config.PARTITION_FILES[PERSONALISATION]})
+    args.model_file = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
                                     f'model_{args.checkpoint_seed}.pth')
     # determine feature from filename
     args.feature = args.model_id.split("_")[2][1:-1]
@@ -103,11 +105,11 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
     all_test_preds = []
     for subject_id, model_file in personalised_cps.items():
         model = torch.load(model_file)
-        subj_dev_labels, subj_dev_preds = get_predictions(model=model, task='personalisation',
+        subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
                                                           data_loader=id2data_loaders[subject_id]['devel'], use_gpu=use_gpu)
         all_dev_labels.append(subj_dev_labels)
         all_dev_preds.append(subj_dev_preds)
-        subj_test_labels, subj_test_preds = get_predictions(model=model, task='personalisation',
+        subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
                                                             data_loader=id2data_loaders[subject_id]['test'], use_gpu=use_gpu)
         all_test_labels.append(subj_test_labels)
         all_test_preds.append(subj_test_preds)
@@ -116,7 +118,7 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
     all_test_labels = np.concatenate(all_test_labels)
     all_test_preds = np.concatenate(all_test_preds)
 
-    eval_fn, _ = get_eval_fn('personalisation')
+    eval_fn, _ = get_eval_fn(PERSONALISATION)
     val_score = eval_fn(all_dev_preds, all_dev_labels)
     test_score = eval_fn(all_test_preds, all_test_labels)
 
@@ -162,13 +164,14 @@ if __name__ == '__main__':
     args = parse_args()
     model = torch.load(args.model_file)
 
-    pers_dir = os.path.join(config.MODEL_FOLDER, 'personalisation', args.model_id,
+    pers_dir = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
                             f'{args.checkpoint_seed}_personalised_{args.timestamp}')
     os.makedirs(pers_dir)
 
-    eval_fn, eval_metric_str = get_eval_fn('personalisation')
-    loss_fn, loss_fn_str = get_loss_fn('personalisation')
+    eval_fn, eval_metric_str = get_eval_fn(PERSONALISATION)
+    loss_fn, loss_fn_str = get_loss_fn(PERSONALISATION)
     seeds = list(range(args.seed, args.seed + args.n_seeds))
+    # TODO predict logic must be in personalise
     val_score, test_score = personalise(model=model, feature=args.feature, emo_dim=args.emo_dim, temp_dir=pers_dir, paths=args.paths,
                 normalize=args.normalize, win_len=args.win_len, hop_len=args.hop_len, epochs=args.epochs, lr=args.lr,
                 use_gpu=args.use_gpu, loss_fn=loss_fn,

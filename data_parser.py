@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Optional, Union
+from typing import List, Dict, Optional, Union, Tuple
 
 import numpy as np
 import pandas as pd
@@ -8,17 +8,17 @@ from glob import glob
 from tqdm import tqdm
 from sklearn.preprocessing import StandardScaler
 
-from config import PATH_TO_FEATURES, PATH_TO_LABELS, PARTITION_FILES
+from config import PATH_TO_FEATURES, PATH_TO_LABELS, PARTITION_FILES, MIMIC_LABELS, MIMIC, HUMOR, PERSONALISATION
 
 
 ################# GLOBAL UTILITY METHODS #############################################
 
-def get_data_partition(partition_file):
-    '''
+def get_data_partition(partition_file) -> Tuple[Dict[str, str], Dict[str, List[str]]]:
+    """
     Reads mappings from subject ids to their partition and vice versa
     :param partition_file: path to the partition file (csv with two columns: id, partition)
     :return: dicts subject2partition, partition2subject
-    '''
+    """
     subject2partition, partition2subject = {}, {}
     if not os.path.exists(partition_file):
         print(os.path.abspath(partition_file))
@@ -35,40 +35,41 @@ def get_data_partition(partition_file):
     return subject2partition, partition2subject
 
 
-def get_all_training_csvs(task, feature):
-    '''
+def get_all_training_csvs(task, feature) -> List[str]:
+    """
     Loads a list of all feature csvs that are used for training a certain task
     :param task: humor, stress etc.
     :param feature: name of the feature folder (e.g. 'egemaps')
     :return: list of csvs
-    '''
+    """
     _, partition_to_subject = get_data_partition(PARTITION_FILES[task])
     feature_dir = os.path.join(PATH_TO_FEATURES[task], feature)
     csvs = []
     for subject in tqdm(partition_to_subject['train']):
-        if task == 'personalisation':
+        if task == PERSONALISATION:
             csvs.append(os.path.join(feature_dir, f'{subject}.csv'))
-        elif task == 'reaction':
+        # TODO Alice check if correct
+        elif task == MIMIC:
             subject = subject[1:-1]
             csvs.append(os.path.join(feature_dir, f'{subject}.csv'))
-        elif task == 'humor':
+        elif task == HUMOR:
             csvs.extend(sorted(glob(os.path.join(feature_dir, subject, "*.csv"))))
 
     return csvs
 
 
-def fit_normalizer(task, feature, feature_idx=2):
-    '''
+def fit_normalizer(task:str, feature:str, feature_idx=2) -> StandardScaler:
+    """
     Fits a sklearn StandardScaler based on training data
     :param task: task
     :param feature: feature
     :param feature_idx: index in the feature csv where the features start
     (typically 2, features starting after segment_id, timestamp)
     :return: fitted sklearn.preprocessing.StandardScaler
-    '''
+    """
     # load training subjects
     training_csvs = get_all_training_csvs(task, feature)
-    if task == 'reaction':
+    if task == MIMIC:
         print('Concatenating csvs')
         df = pd.concat([pd.read_csv(training_csv) for training_csv in tqdm(training_csvs)])
     else:
@@ -83,8 +84,8 @@ def fit_normalizer(task, feature, feature_idx=2):
 
 # --------------------------------------  humor ---------------------------------------------------------------#
 
-def load_humor_subject(feature, subject_id, normalizer):
-    '''
+def load_humor_subject(feature, subject_id, normalizer) -> Tuple[List[np.ndarray], np.ndarray, np.ndarray]:
+    """
     Loads data for a single subject for the humor task
     :param feature: feature name
     :param subject_id: subject name
@@ -93,16 +94,16 @@ def load_humor_subject(feature, subject_id, normalizer):
         features is a list of ndarrays of shape (seg_len, feature_dim)
         labels is a ndarray of shape (len(features), 1) (label for each element in the features list)
         metas is a ndarray of shape (len(features), 1, 1+len(label columns)) (segment_id, seq_start, seq_end, segment_id)
-    '''
+    """
     # parse labels
-    label_path = PATH_TO_LABELS['humor']
+    label_path = PATH_TO_LABELS[HUMOR]
     label_files = sorted(glob(os.path.join(label_path, subject_id + '/*.csv')))
     assert len(label_files) > 0, f'Error: no available humor label files for coach "{subject_id}": "{label_files}".'
     label_df = pd.concat([pd.read_csv(label_file) for label_file in label_files])
 
     # idx of the data frame (column) where features start
     feature_idx = 2
-    feature_path = PATH_TO_FEATURES['humor']
+    feature_path = PATH_TO_FEATURES[HUMOR]
 
     feature_files = sorted(glob(os.path.join(feature_path, feature, subject_id + '/*.csv')))
     assert len(
@@ -135,9 +136,9 @@ def load_humor_subject(feature, subject_id, normalizer):
     return features, labels, metas
 
 
-# --------------------------------------  stress ---------------------------------------------------------------#
+# --------------------------------------  personalisation ------------------------------------------------------------#
 
-def segment_stress(sample, win_len, hop_len):
+def segment_personalisation(sample:pd.DataFrame, win_len, hop_len) -> List[pd.DataFrame]:
     segmented_sample = []
     assert hop_len <= win_len and win_len >= 10
 
@@ -151,9 +152,10 @@ def segment_stress(sample, win_len, hop_len):
     return segmented_sample
 
 
-def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, apply_segmentation=True,
-                        win_len=200, hop_len=100):
-    '''
+def load_personalisation_subject(feature, subject_id, partition, emo_dim, normalizer, apply_segmentation=True,
+                                 win_len=200, hop_len=100) \
+        -> Tuple[List[np.ndarray], List[np.ndarray], List[np.ndarray]]:
+    """
     Loads data for a single subject for the stress task
     :param feature: feature name
     :param subject_id: subject name
@@ -166,13 +168,13 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
             labels is a list of ndarrays corresponding to features, each shaped (seq_len, 1) accordingly
             metas is a list of ndarrays corresponding to features, each shaped (seq_len, 3) accordingly
                 (subject_id, timestamp, segment_id)
-    '''
+    """
     # this will contain timestamp, segment_id, features f1...fn, label
     sample_data = []
 
     feature_idx = 2
 
-    feature_path = PATH_TO_FEATURES['personalisation']
+    feature_path = PATH_TO_FEATURES[PERSONALISATION]
 
     feature_file = os.path.join(feature_path, feature, subject_id + '.csv')
     assert os.path.exists(
@@ -187,7 +189,7 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
     sample_data.append(feature_data)
 
     # parse labels
-    label_path = PATH_TO_LABELS['personalisation']
+    label_path = PATH_TO_LABELS[PERSONALISATION]
     label_file = os.path.join(label_path, emo_dim, subject_id + '.csv')
     assert os.path.exists(
         label_file), f'Error: no available "{emo_dim}" label file for video "{subject_id}": "{label_file}".'
@@ -207,7 +209,7 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
     sample_data['timestamp'] = timestamps
 
     if apply_segmentation:
-        samples = segment_stress(sample_data, win_len, hop_len)
+        samples = segment_personalisation(sample_data, win_len, hop_len)
     else:
         samples = [sample_data]
 
@@ -228,15 +230,15 @@ def load_stress_subject(feature, subject_id, partition, emo_dim, normalizer, app
     return features, labels, metas
 
 
-# --------------------------------------  reaction ---------------------------------------------------------------#
+# --------------------------------------  mimic ---------------------------------------------------------------#
 
-def load_reaction_subject(feature, subject_id, normalizer):
-    '''
-    Loads data for a single subject for the reaction task
+def load_mimic_subject(feature, subject_id, normalizer) -> Tuple[List[np.ndarray], np.ndarray, np.ndarray]:
+    """
+    Loads data for a single subject for the mimic task
     :param feature: feature name
     :param subject_id: subject name/ID
     :param normalizer: fitted StandardScaler, can be None if no normalization is desired. It is created in the load_data
-    method, so no need to take care of that. It just needs to be called in the load_reaction_subject method somewhere
+    method, so no need to take care of that. It just needs to be called in the load_mimic_subject method somewhere
     to normalize the features
     :return: features, labels, metas.
         Assuming every subject consists of n segments of lengths l_1,...,l_n:
@@ -247,14 +249,14 @@ def load_reaction_subject(feature, subject_id, normalizer):
                 Typically something like (subject_id, segment_id, seq_start, seq_end) or the like
                 They are only used to write the predictions: a prediction line consists of all the meta data associated
                     with one data point + the predicted label(s)
-    '''
+    """
     # parse labels
-    label_path = PATH_TO_LABELS['reaction']
+    label_path = PATH_TO_LABELS[MIMIC]
     label_df = pd.read_csv(os.path.join(label_path, 'labels.csv'))
     labels = label_df[label_df.File_ID == subject_id].iloc[:, 1:].values
-    assert labels.shape == (1, 7), f"Malformed label file for ID {subject_id}"
+    assert labels.shape == (1, len(MIMIC_LABELS)), f"Malformed label file for ID {subject_id}"
 
-    feature_path = os.path.join(PATH_TO_FEATURES['reaction'], feature)
+    feature_path = os.path.join(PATH_TO_FEATURES[MIMIC], feature)
     feature_df = pd.read_csv(os.path.join(feature_path, f'{subject_id.replace("[", "").replace("]", "")}.csv'))
 
     feature_idx = 2
@@ -270,28 +272,37 @@ def load_reaction_subject(feature, subject_id, normalizer):
 
 ################# LOAD DATASETS USING THE SPECIFIC METHODS ABOVE #############################################
 
-def load_data(task, paths, feature, emo_dim, normalize: Optional[Union[bool, StandardScaler]] = True, win_len=200,
-              hop_len=100, save=False,
-              segment_train=True, ids: Dict[str, List[str]] = None, data_file_suffix=None):
-    '''
+def load_data(task:str,
+              paths:Dict[str, str],
+              feature:str,
+              emo_dim: Optional[str],
+              normalize: Optional[Union[bool, StandardScaler]] = True,
+              win_len=200,
+              hop_len=100,
+              save=False,
+              segment_train=True,
+              ids: Optional[Dict[str, List[str]]] = None,
+              data_file_suffix: Optional[str]=None) \
+        -> Dict[str, Dict[str, List[np.ndarray]]]:
+    """
     Loads the complete data sets
     :param task: task
     :param paths: dict for paths to data and partition file
     :param feature: feature to load
-    :param emo_dim: emotion dimension to load labels for
+    :param emo_dim: emotion dimension to load labels for - only relevant for personalisation task
     :param normalize: whether normalization is desired
-    :param win_len: window length for segmentation (ignored for humor - and reaction?)
-    :param hop_len: hop length for segmentation (ignored for humor - and reaction?)
+    :param win_len: window length for segmentation (ignored for humor - and mimic?)
+    :param hop_len: hop length for segmentation (ignored for humor - and mimic?)
     :param save: whether to cache the loaded data as .pickle
     :param segment_train: whether to do segmentation on the training data
-    :param ids: only consider these IDs (map 'train', 'devel', 'test' to list of ids)
+    :param ids: only consider these IDs (map 'train', 'devel', 'test' to list of ids) - only relevant for personalisation
     :param data_file_suffix: optional suffix for data file, may be useful for personalisation
     :return: dict with keys 'train', 'devel' and 'test', each in turn a dict with keys:
         feature: list of ndarrays shaped (seq_length, features)
         labels: corresponding list of ndarrays shaped (seq_length, 1) for n-to-n tasks like stress, (1,) for n-to-1
-            task humor, (7,) for n-to-7 task reaction
-        meta: corresponding list of ndarrays shaped (seq_length, metadata_dim) where seq_length=1 for n-to-1/n-to-7
-    '''
+            task humor, (4,) for n-to-4 task mimic
+        meta: corresponding list of ndarrays shaped (seq_length, metadata_dim) where seq_length=1 for n-to-1/n-to-4
+    """
 
     data_file_name = f'data_{task}_{feature}_{emo_dim + "_" if len(emo_dim) > 0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
                      f'{hop_len}{"_seg" if segment_train else ""}{f"_{data_file_suffix}" if data_file_suffix else ""}.pkl'
@@ -324,17 +335,17 @@ def load_data(task, paths, feature, emo_dim, normalize: Optional[Union[bool, Sta
         apply_segmentation = segment_train and partition == 'train'
 
         for subject_id in tqdm(subject_ids):
-            if task == 'personalisation':
-                features, labels, metas = load_stress_subject(feature=feature, subject_id=subject_id,
-                                                              partition=partition, emo_dim=emo_dim,
-                                                              normalizer=normalizer,
-                                                              apply_segmentation=apply_segmentation, win_len=win_len,
-                                                              hop_len=hop_len)
-            elif task == 'humor':
+            if task == PERSONALISATION:
+                features, labels, metas = load_personalisation_subject(feature=feature, subject_id=subject_id,
+                                                                       partition=partition, emo_dim=emo_dim,
+                                                                       normalizer=normalizer,
+                                                                       apply_segmentation=apply_segmentation, win_len=win_len,
+                                                                       hop_len=hop_len)
+            elif task == HUMOR:
                 features, labels, metas = load_humor_subject(feature=feature, subject_id=subject_id,
                                                              normalizer=normalizer)
-            elif task == 'reaction':
-                features, labels, metas = load_reaction_subject(feature=feature, subject_id=subject_id,
+            elif task == MIMIC:
+                features, labels, metas = load_mimic_subject(feature=feature, subject_id=subject_id,
                                                                 normalizer=normalizer)
 
             data[partition]['feature'].extend(features)
@@ -348,7 +359,13 @@ def load_data(task, paths, feature, emo_dim, normalize: Optional[Union[bool, Sta
     return data
 
 
-def load_personalisation_data(paths, feature, emo_dim, normalize=True, win_len=200, hop_len=100, save=True,
+def load_personalisation_data(paths,
+                              feature,
+                              emo_dim,
+                              normalize=True,
+                              win_len=200,
+                              hop_len=100,
+                              save=True,
                               segment_train=True):
     data_file_name = f'data_personalisation_2nd_stage_{feature}_{emo_dim + "_" if len(emo_dim) > 0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
                      f'{hop_len}{"_seg" if segment_train else ""}.pkl'
@@ -359,16 +376,16 @@ def load_personalisation_data(paths, feature, emo_dim, normalize=True, win_len=2
         data, test_ids = pickle.load(open(data_file, 'rb'))
         return data, test_ids
 
-    normalizer = fit_normalizer('personalisation', feature) if normalize else None
+    normalizer = fit_normalizer(PERSONALISATION, feature) if normalize else None
 
     data = []
     test_ids = []
     _, partition2subject = get_data_partition(paths['partition'])
     test_subjects = partition2subject['test']
     for test_subject in test_subjects:
-        # 1_test -> 1
+        # e.g., 1_test -> 1
         subject_nr = test_subject.split("_")[0]
-        data.append(load_data(task='personalisation', feature=feature, emo_dim=emo_dim, normalize=normalizer,
+        data.append(load_data(task=PERSONALISATION, feature=feature, emo_dim=emo_dim, normalize=normalizer,
                               win_len=win_len, hop_len=hop_len, save=False, segment_train=segment_train,
                               ids=({'train': [f'{subject_nr}_train'], 'devel': [f'{subject_nr}_devel'],
                                     'test': [f'{subject_nr}_test']}),

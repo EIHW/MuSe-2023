@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 
+
 class CCCLoss(nn.Module):
     def __init__(self):
         super(CCCLoss, self).__init__()
@@ -29,8 +30,9 @@ class CCCLoss(nn.Module):
 
         return ccc_loss
 
+
 # wraps BCEWithLogitsLoss, but constructor accepts (and ignores) argument seq_lens
-class WrappedBCEWithLogitsLoss(nn.Module):
+class BCEWithLogitsLossWrapper(nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -40,7 +42,7 @@ class WrappedBCEWithLogitsLoss(nn.Module):
         return self.loss_fn(y_pred, y_true)
 
 
-class WrappedMSELoss(nn.Module):
+class MSELossWrapper(nn.Module):
 
     def __init__(self, reduction):
         super().__init__()
@@ -51,7 +53,7 @@ class WrappedMSELoss(nn.Module):
 
 
 # wraps BCELoss, but constructor accepts (and ignores) argument seq_lens
-class WrappedBCELoss(nn.Module):
+class BCELossWrapper(nn.Module):
 
     def __init__(self):
         super().__init__()
@@ -59,7 +61,6 @@ class WrappedBCELoss(nn.Module):
 
     def forward(self, y_pred, y_true, seq_lens=None):
         return self.loss_fn(y_pred, y_true)
-
 
 
 def get_segment_wise_labels(labels):

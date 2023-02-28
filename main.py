@@ -1,36 +1,34 @@
 import argparse
 import os
-import sys
-from shutil import rmtree
-
-import numpy as np
-import torch
-import numpy
 import random
+import sys
 from datetime import datetime
+
+import numpy
+import torch
 from dateutil import tz
 
 import config
-
-from utils import Logger, seed_worker, log_results
-from train import train_model, train_personalised_models
-from eval import evaluate, calc_ccc, calc_auc, mean_ccc, mean_pearsons, get_predictions
-from model import Model, TRANSFORMER_MODEL, RNN_MODEL
-from loss import CCCLoss, WrappedBCELoss, WrappedMSELoss
+from config import TASKS, PERSONALISATION, HUMOR, MIMIC, AROUSAL, VALENCE, PERSONALISATION_DIMS
+from data_parser import load_data
 from dataset import MuSeDataset, custom_collate_fn
-from data_parser import load_data, load_personalisation_data
+from eval import evaluate, calc_ccc, calc_auc, mean_pearsons
+from loss import CCCLoss, BCELossWrapper, MSELossWrapper
+from model import Model, TRANSFORMER_MODEL, RNN_MODEL
+from train import train_model
+from utils import Logger, seed_worker, log_results
 
 
 def parse_args():
 
     parser = argparse.ArgumentParser(description='MuSe 2022.')
 
-    parser.add_argument('--task', type=str, required=True, choices=['personalisation'],
-                        help='Specify the task (personalisation).')
+    parser.add_argument('--task', type=str, required=True, choices=TASKS,
+                        help=f'Specify the task from {TASKS}.')
     parser.add_argument('--feature', required=True,
                         help='Specify the features used (only one).')
-    parser.add_argument('--emo_dim', default='physio-arousal',
-                        help='Specify the emotion dimension, only relevant for stress (default: arousal).')
+    parser.add_argument('--emo_dim', default=AROUSAL, choices=PERSONALISATION_DIMS,
+                        help=f'Specify the emotion dimension, only relevant for personalisation (default: {AROUSAL}).')
     parser.add_argument('--normalize', action='store_true',
                         help='Specify whether to normalize features (default: False).')
     parser.add_argument('--win_len', type=int, default=200,
@@ -88,22 +86,22 @@ def parse_args():
 
 
 def get_loss_fn(task):
-    if task == 'personalisation':
+    if task == PERSONALISATION:
         return CCCLoss(), 'CCC'
-    elif task == 'humor':
-        return WrappedBCELoss(), 'Binary Crossentropy'
-    elif task == 'reaction':
-        return WrappedMSELoss(reduction='mean'), 'MSE'
+    elif task == HUMOR:
+        return BCELossWrapper(), 'Binary Crossentropy'
+    elif task == MIMIC:
+        return MSELossWrapper(reduction='mean'), 'MSE'
 
 
 
 
 def get_eval_fn(task):
-    if task == 'personalisation':
+    if task == PERSONALISATION:
         return calc_ccc, 'CCC'
     elif task == 'reaction':
         return mean_pearsons, 'Mean Pearsons'
-    elif task == 'humor':
+    elif task == HUMOR:
         return calc_auc, 'AUC-Score'
 
 
@@ -113,14 +111,14 @@ def main(args):
     random.seed(10)
 
     # emo_dim only relevant for stress/personalisation
-    args.emo_dim = args.emo_dim if args.task=='personalisation' else ''
+    args.emo_dim = args.emo_dim if args.task==PERSONALISATION else ''
     print('Loading data ...')
     data = load_data(args.task, args.paths, args.feature, args.emo_dim, args.normalize,
                      args.win_len, args.hop_len, save=args.cache)
     data_loader = {}
     for partition in data.keys():  # one DataLoader for each partition
         set = MuSeDataset(data, partition)
-        batch_size = args.batch_size if partition == 'train' else (1 if args.task=='personalisation' else 2*args.batch_size)
+        batch_size = args.batch_size if partition == 'train' else (1 if args.task==PERSONALISATION else 2*args.batch_size)
         shuffle = True if partition == 'train' else False  # shuffle only for train partition
         data_loader[partition] = torch.utils.data.DataLoader(set, batch_size=batch_size, shuffle=shuffle, num_workers=4,
                                                              worker_init_fn=seed_worker, collate_fn=custom_collate_fn)
@@ -203,18 +201,17 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
 
-    # TODO adapt to transformer
     if args.model_type == RNN_MODEL:
         args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN',
         datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature, args.emo_dim,
-        args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr, args.batch_size) if args.task == 'stress' else \
+        args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr, args.batch_size) if args.task == PERSONALISATION else \
         '{}_{}_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN', datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature.replace(os.path.sep, "-"),
                                                  args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr,args.batch_size)
     elif args.model_type == TRANSFORMER_MODEL:
         args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}_{}]_[{}_{}]'.format('Transformer',
             datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature, args.emo_dim,
             args.model_dim, args.trf_num_layers, args.trf_num_heads, args.trf_mask_windowing, args.d_fc_out, args.lr,
-            args.batch_size) if args.task == 'stress' else \
+            args.batch_size) if args.task == PERSONALISATION else \
             '{}_{}_[{}]_[{}_{}_{}_{}_{}]_[{}_{}]'.format('Transformer', datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"),
                                                    args.feature.replace(os.path.sep, "-"),
                                                    args.model_dim, args.trf_num_layers, args.trf_num_heads, args.trf_mask_windowing, args.d_fc_out, args.lr, args.batch_size)

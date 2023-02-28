@@ -5,16 +5,16 @@ import torch
 from sklearn.metrics import roc_curve, auc
 from scipy import stats
 
-from config import REACTION_LABELS
+from config import MIMIC_LABELS, MIMIC, PERSONALISATION
 
 
 def calc_ccc(preds, labels):
-    '''
+    """
     Concordance Correlation Coefficient
     :param preds: 1D np array
     :param labels: 1D np array
     :return:
-    '''
+    """
 
     preds_mean, labels_mean = np.mean(preds), np.mean(labels)
     cov_mat = np.cov(preds, labels)
@@ -26,11 +26,11 @@ def calc_ccc(preds, labels):
 
 
 def mean_ccc(preds, labels):
-    '''
+    """
     :param preds: list of list of lists (num batches, batch_size, num_classes)
     :param labels: same
     :return: scalar
-    '''
+    """
     preds = np.row_stack([np.array(p) for p in preds])
     labels = np.row_stack([np.array(l) for l in labels])
     num_classes = preds.shape[1]
@@ -64,9 +64,9 @@ def calc_auc(preds, labels):
 def write_reaction_predictions(full_metas, full_preds, csv_dir, filename):
     meta_arr = np.row_stack(full_metas).squeeze()
     preds_arr = np.row_stack(full_preds)
-    pred_df = pd.DataFrame(columns=['File_ID'] + REACTION_LABELS)
+    pred_df = pd.DataFrame(columns=['File_ID'] + MIMIC_LABELS)
     pred_df['File_ID'] = meta_arr
-    pred_df[REACTION_LABELS] = preds_arr
+    pred_df[MIMIC_LABELS] = preds_arr
     pred_df.to_csv(os.path.join(csv_dir, filename), index=False)
     return None
 
@@ -77,7 +77,7 @@ def write_predictions(task, full_metas, full_preds, prediction_path, filename):
     if not os.path.exists(prediction_path):
         os.makedirs(prediction_path)
 
-    if task == 'reaction':
+    if task == MIMIC:
         return write_reaction_predictions(full_metas, full_preds, prediction_path, filename)
 
     metas_flat = []
@@ -108,7 +108,7 @@ def get_predictions(model, task, data_loader, use_gpu=False):
         for batch, batch_data in enumerate(data_loader, 1):
             features, feature_lens, labels, metas = batch_data
 
-            batch_size = features.size(0) if task != 'personalisation' else 1
+            batch_size = features.size(0) if task != PERSONALISATION else 1
 
             if use_gpu:
                 model.cuda()
@@ -120,11 +120,11 @@ def get_predictions(model, task, data_loader, use_gpu=False):
 
             # only relevant for stress
             feature_lens = feature_lens.detach().cpu().tolist()
-            cutoff = feature_lens[0] if task == 'personalisation' else batch_size
+            cutoff = feature_lens[0] if task == PERSONALISATION else batch_size
 
             full_labels.append(labels.cpu().detach().squeeze().numpy().tolist()[:cutoff])
             full_preds.append(preds.cpu().detach().squeeze().numpy().tolist()[:cutoff])
-    if task == 'personalisation':
+    if task == PERSONALISATION:
         full_preds = flatten_personalisation_for_ccc(full_preds)
         full_labels = flatten_personalisation_for_ccc(full_labels)
     return full_labels, full_preds
@@ -149,7 +149,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
                     print('No labels available, no evaluation')
                     return np.nan, np.nan
 
-            batch_size = features.size(0) if task != 'personalisation' else 1
+            batch_size = features.size(0) if task != PERSONALISATION else 1
 
             if use_gpu:
                 model.cuda()
@@ -161,7 +161,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
 
             # only relevant for stress
             feature_lens = feature_lens.detach().cpu().tolist()
-            cutoff = feature_lens[0] if task == 'personalisation' else batch_size
+            cutoff = feature_lens[0] if task == PERSONALISATION else batch_size
             if predict:
                 full_metas.append(metas.tolist()[:cutoff])
 
@@ -177,7 +177,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
             write_predictions(task, full_metas, full_preds, prediction_path, filename)
             return
         else:
-            if task == 'personalisation':
+            if task == PERSONALISATION:
                 full_preds = flatten_personalisation_for_ccc(full_preds)
                 full_labels = flatten_personalisation_for_ccc(full_labels)
             score = eval_fn(full_preds, full_labels)
@@ -186,9 +186,9 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
 
 
 def flatten_personalisation_for_ccc(lst):
-    '''
+    """
     Brings full_preds and full_labels of stress into the right format for the CCC function
     :param lst: list of lists of different lengths
     :return: flattened numpy array
-    '''
+    """
     return np.concatenate([np.array(l) for l in lst])
