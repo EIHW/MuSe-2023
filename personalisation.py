@@ -25,6 +25,8 @@ def parse_args():
     parser.add_argument('--model_id', required=True, help='model id')
     parser.add_argument('--emo_dim', default=AROUSAL, choices=PERSONALISATION_DIMS,
                         help=f'Specify the emotion dimension, (default: {AROUSAL}).')
+    # TODO this is just for internal experiments, remove before publication
+    parser.add_argument('--random_init', action='store_true')
     parser.add_argument('--name', type=str, default=None, help='Optional name for the new "feature set". If not given,'
                                                                'name will be calculated from the aliases.')
     parser.add_argument('--checkpoint_seed', required=True, help='Checkpoints to use, e.g. '
@@ -160,9 +162,18 @@ def log_personalisation_results(csv_path, params, val_score, test_score, metric_
     df.to_csv(csv_path, index=False)
 
 
+def random_init(model:torch.nn.Module):
+    for param in model.parameters():
+        torch.nn.init.normal(param)
+    return model
+
+
 if __name__ == '__main__':
     args = parse_args()
-    model = torch.load(args.model_file)
+    # TODO remove this...
+    model = torch.load(args.model_file, map_location='cuda' if args.use_gpu else 'cpu')
+    if args.random_init:
+        model = random_init(model)
 
     pers_dir = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
                             f'{args.checkpoint_seed}_personalised_{args.timestamp}')
