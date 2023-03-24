@@ -381,16 +381,18 @@ def load_personalisation_data(paths,
     data = []
     test_ids = []
     _, partition2subject = get_data_partition(paths['partition'])
-    test_subjects = partition2subject['test']
+    test_subjects = sorted(list(set([s.split("_") [0]for s in partition2subject['test']])))
     for test_subject in test_subjects:
         # e.g., 1_test -> 1
-        subject_nr = test_subject.split("_")[0]
+        #subject_nr = test_subject.split("_")[0]
+        all_subject_devels = [s for s in partition2subject['devel'] if s.split("_")[0]==test_subject]
+        all_subject_tests = [s for s in partition2subject['test'] if s.split("_")[0]==test_subject]
         data.append(load_data(task=PERSONALISATION, feature=feature, emo_dim=emo_dim, normalize=normalizer,
                               win_len=win_len, hop_len=hop_len, save=False, segment_train=segment_train,
-                              ids=({'train': [f'{subject_nr}_train'], 'devel': [f'{subject_nr}_devel'],
-                                    'test': [f'{subject_nr}_test']}),
+                              ids=({'train': [f'{test_subject}_train'], 'devel': all_subject_devels,
+                                    'test': all_subject_tests}),
                               paths=paths))
-        test_ids.append(subject_nr)
+        test_ids.append(test_subject)
 
     if save:
         print('Saving data...')
