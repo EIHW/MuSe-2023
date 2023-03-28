@@ -85,13 +85,14 @@ class RNN(nn.Module):
     def forward(self, x, x_len):
         x_packed = pack_padded_sequence(x, x_len.cpu(), batch_first=True, enforce_sorted=False)
         rnn_enc = self.rnn(x_packed)
+
         if self.n_to_1:
             # hiddenstates, h_n, only last layer
-            h_n = rnn_enc[1][0] # (ND*NL, BS, dim)
-            batch_size = x.shape[0]
-            h_n = h_n.view(self.n_layers, self.n_directions, batch_size, self.d_out) # (NL, ND, BS, dim)
-            last_layer = h_n[-1].permute(1,0,2) # (BS, ND, dim)
-            x_out = last_layer.reshape(batch_size, self.n_directions * self.d_out) # (BS, ND*dim)
+            return last_item_from_packed(rnn_enc[0], x_len)
+            #batch_size = x.shape[0]
+            #h_n = h_n.view(self.n_layers, self.n_directions, batch_size, self.d_out) # (NL, ND, BS, dim)
+            #last_layer = h_n[-1].permute(1,0,2) # (BS, ND, dim)
+            #x_out = last_layer.reshape(batch_size, self.n_directions * self.d_out) # (BS, ND*dim)
 
         else:
             x_out = rnn_enc[0]
@@ -99,6 +100,17 @@ class RNN(nn.Module):
 
         return x_out
 
+#https://discuss.pytorch.org/t/get-each-sequences-last-item-from-packed-sequence/41118/7
+def last_item_from_packed(packed, lengths):
+    sum_batch_sizes = torch.cat((
+        torch.zeros(2, dtype=torch.int64),
+        torch.cumsum(packed.batch_sizes, 0)
+    ))
+    sorted_lengths = lengths[packed.sorted_indices]
+    last_seq_idxs = sum_batch_sizes[sorted_lengths] + torch.arange(lengths.size(0))
+    last_seq_items = packed.data[last_seq_idxs]
+    last_seq_items = last_seq_items[packed.unsorted_indices]
+    return last_seq_items
 
 class OutLayer(nn.Module):
     def __init__(self, d_in, d_hidden, d_out, dropout=.0, bias=.0):
