@@ -77,6 +77,8 @@ def parse_args():
                         help='L2-Penalty')
     parser.add_argument('--eval_model', type=str, default=None,
                         help='Specify model which is to be evaluated; no training with this option (default: False).')
+    parser.add_argument('--eval_seed', type=str, default=None,
+                        help='Specify seed to be evaluated; only considered when --eval_model is given.')
 
     args = parser.parse_args()
     if not (args.result_csv is None) and args.predict:
@@ -177,7 +179,7 @@ def main(args):
                         best_idx=best_idx)
 
     else:  # Evaluate existing model (No training)
-        model_file = args.eval_model
+        model_file = os.path.join(args.paths['model'], f'model_{args.eval_seed}.pth')
         model = torch.load(model_file, map_location=torch.device('cuda') if torch.cuda.is_available()
         else torch.device('cpu'))
         _, valid_score = evaluate(args.task, model, data_loader['devel'], loss_fn=loss_fn, eval_fn=eval_fn,
@@ -190,10 +192,14 @@ def main(args):
             print(f'[Test {eval_str}]: {test_score:7.4f}')
 
     if args.predict:  # Make predictions for the test partition; this option is set if there are no test labels
-        print('Predicting test samples...')
-        best_model = torch.load(model_file)
+        print('Predicting devel and test samples...')
+        best_model = torch.load(model_file, map_location=config.device)
+        evaluate(args.task, best_model, data_loader['devel'], loss_fn=loss_fn, eval_fn=eval_fn,
+                 use_gpu=args.use_gpu, predict=True, prediction_path=args.paths['predict'],
+                 filename='predictions_devel.csv')
         evaluate(args.task, best_model, data_loader['test'], loss_fn=loss_fn, eval_fn=eval_fn,
-                 use_gpu=args.use_gpu, predict=True, prediction_path=args.paths['predict'], filename='predictions.csv')
+                 use_gpu=args.use_gpu, predict=True, prediction_path=args.paths['predict'], filename='predictions_test.csv')
+        print(f'Find predictions in {os.path.join(args.paths["predict"])}')
 
     print('Done.')
 
@@ -217,11 +223,11 @@ if __name__ == '__main__':
                                                    args.model_dim, args.trf_num_layers, args.trf_num_heads, args.trf_mask_windowing, args.d_fc_out, args.lr, args.batch_size)
 
     # adjust your paths in config.py
-    args.paths = {'log': os.path.join(config.LOG_FOLDER, args.task),
+    args.paths = {'log': os.path.join(config.LOG_FOLDER, args.task) if not args.predict else os.path.join(config.LOG_FOLDER, args.task, 'prediction'),
                   'data': os.path.join(config.DATA_FOLDER, args.task),
-                  'model': os.path.join(config.MODEL_FOLDER, args.task, args.log_file_name)}
+                  'model': os.path.join(config.MODEL_FOLDER, args.task, args.log_file_name if not args.predict else args.eval_model)}
     if args.predict:
-        args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.log_file_name)
+        args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.eval_model)
     for folder in args.paths.values():
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
