@@ -1,5 +1,6 @@
 import pathlib
 from datetime import datetime
+from typing import List, Dict
 
 import pandas as pd
 from dateutil import tz
@@ -9,6 +10,7 @@ from shutil import rmtree
 
 import numpy as np
 import torch
+from torch.utils.data import DataLoader
 
 import config
 from config import AROUSAL, PERSONALISATION_DIMS, PERSONALISATION
@@ -79,6 +81,34 @@ def parse_args():
     args.feature = args.model_id.split("_")[2][1:-1]
     return args
 
+def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False):
+    all_dev_labels = []
+    all_dev_preds = []
+    all_test_labels = []
+    all_test_preds = []
+    for subject_id, model_file in personalised_cps.items():
+        model = torch.load(model_file)
+        subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
+                                                          data_loader=id2data_loaders[subject_id]['devel'],
+                                                          use_gpu=use_gpu)
+        all_dev_labels.append(subj_dev_labels)
+        all_dev_preds.append(subj_dev_preds)
+        subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
+                                                            data_loader=id2data_loaders[subject_id]['test'],
+                                                            use_gpu=use_gpu)
+        all_test_labels.append(subj_test_labels)
+        all_test_preds.append(subj_test_preds)
+    all_dev_labels = np.concatenate(all_dev_labels)
+    all_dev_preds = np.concatenate(all_dev_preds)
+    all_test_labels = np.concatenate(all_test_labels)
+    all_test_preds = np.concatenate(all_test_preds)
+
+    eval_fn, _ = get_eval_fn(PERSONALISATION)
+    val_score = eval_fn(all_dev_preds, all_dev_labels)
+    test_score = eval_fn(all_test_preds, all_test_labels)
+
+    return all_dev_preds, val_score, all_test_preds, test_score
+
 
 def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, hop_len, epochs, lr, use_gpu, loss_fn,
                 eval_fn, eval_metric_str, early_stopping_patience, reduce_lr_patience, seeds, regularization=0.0):
@@ -101,29 +131,31 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
                               lr=lr, use_gpu=use_gpu, loss_fn=loss_fn, eval_fn=eval_fn,
                                 eval_metric_str=eval_metric_str, early_stopping_patience=early_stopping_patience,
                               reduce_lr_patience=reduce_lr_patience, regularization = regularization, seeds=seeds)
-    all_dev_labels = []
-    all_dev_preds = []
-    all_test_labels = []
-    all_test_preds = []
-    for subject_id, model_file in personalised_cps.items():
-        model = torch.load(model_file)
-        subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
-                                                          data_loader=id2data_loaders[subject_id]['devel'], use_gpu=use_gpu)
-        all_dev_labels.append(subj_dev_labels)
-        all_dev_preds.append(subj_dev_preds)
-        subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
-                                                            data_loader=id2data_loaders[subject_id]['test'], use_gpu=use_gpu)
-        all_test_labels.append(subj_test_labels)
-        all_test_preds.append(subj_test_preds)
-    all_dev_labels = np.concatenate(all_dev_labels)
-    all_dev_preds = np.concatenate(all_dev_preds)
-    all_test_labels = np.concatenate(all_test_labels)
-    all_test_preds = np.concatenate(all_test_preds)
+    # all_dev_labels = []
+    # all_dev_preds = []
+    # all_test_labels = []
+    # all_test_preds = []
+    # for subject_id, model_file in personalised_cps.items():
+    #     model = torch.load(model_file)
+    #     subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
+    #                                                       data_loader=id2data_loaders[subject_id]['devel'], use_gpu=use_gpu)
+    #     all_dev_labels.append(subj_dev_labels)
+    #     all_dev_preds.append(subj_dev_preds)
+    #     subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
+    #                                                         data_loader=id2data_loaders[subject_id]['test'], use_gpu=use_gpu)
+    #     all_test_labels.append(subj_test_labels)
+    #     all_test_preds.append(subj_test_preds)
+    # all_dev_labels = np.concatenate(all_dev_labels)
+    # all_dev_preds = np.concatenate(all_dev_preds)
+    # all_test_labels = np.concatenate(all_test_labels)
+    # all_test_preds = np.concatenate(all_test_preds)
+    #
+    # eval_fn, _ = get_eval_fn(PERSONALISATION)
+    # val_score = eval_fn(all_dev_preds, all_dev_labels)
+    # test_score = eval_fn(all_test_preds, all_test_labels)
 
-    eval_fn, _ = get_eval_fn(PERSONALISATION)
-    val_score = eval_fn(all_dev_preds, all_dev_labels)
-    test_score = eval_fn(all_test_preds, all_test_labels)
-
+    _, val_score, _, test_score = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
+                                                    use_gpu=use_gpu)
     return val_score, test_score
 
 
@@ -171,7 +203,7 @@ def random_init(model:torch.nn.Module):
 if __name__ == '__main__':
     args = parse_args()
     # TODO remove this...
-    model = torch.load(args.model_file, map_location='cuda' if args.use_gpu else 'cpu')
+    model = torch.load(args.model_file, map_location=config.device)
     if args.random_init:
         model = random_init(model)
 
