@@ -109,12 +109,7 @@ def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str,
 
     return all_dev_preds, val_score, all_test_preds, test_score
 
-
-def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, hop_len, epochs, lr, use_gpu, loss_fn,
-                eval_fn, eval_metric_str, early_stopping_patience, reduce_lr_patience, seeds, regularization=0.0):
-    # TODO logic for when test is not available
-    data, test_ids = load_personalisation_data(paths, feature, emo_dim, normalize=normalize, win_len=win_len, hop_len=hop_len, save=True,
-                              segment_train=True)
+def create_data_loaders(data, test_ids):
     data_loaders = []
     for subj_data in data:
         data_loader = {}
@@ -122,10 +117,41 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
             set = MuSeDataset(subj_data, partition)
             batch_size = args.batch_size if partition == 'train' else 1
             shuffle = True if partition == 'train' else False  # shuffle only for train partition
-            data_loader[partition] = torch.utils.data.DataLoader(set, batch_size=batch_size, shuffle=shuffle, num_workers=4,
-                                                             worker_init_fn=seed_worker, collate_fn=custom_collate_fn)
+            data_loader[partition] = torch.utils.data.DataLoader(set, batch_size=batch_size, shuffle=shuffle,
+                                                                 num_workers=4,
+                                                                 worker_init_fn=seed_worker,
+                                                                 collate_fn=custom_collate_fn)
         data_loaders.append(data_loader)
-    id2data_loaders = {i:d for i,d in zip(test_ids, data_loaders)}
+    id2data_loaders = {i: d for i, d in zip(test_ids, data_loaders)}
+    return data_loaders, id2data_loaders
+
+
+def get_trained_predictions(paths, feature, emo_dim, normalize, win_len, hop_len):
+    data, test_ids = load_personalisation_data(paths, feature, emo_dim, normalize=normalize, win_len=win_len,
+                                               hop_len=hop_len, save=True,
+                                               segment_train=True)
+    data_loaders, id2data_loaders = create_data_loaders(data, test_ids)
+    # TODO implement
+
+
+def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, hop_len, epochs, lr, use_gpu, loss_fn,
+                eval_fn, eval_metric_str, early_stopping_patience, reduce_lr_patience, seeds, regularization=0.0):
+    # TODO logic for when test is not available
+    data, test_ids = load_personalisation_data(paths, feature, emo_dim, normalize=normalize, win_len=win_len, hop_len=hop_len, save=True,
+                              segment_train=True)
+    # data_loaders = []
+    # for subj_data in data:
+    #     data_loader = {}
+    #     for partition in subj_data.keys():
+    #         set = MuSeDataset(subj_data, partition)
+    #         batch_size = args.batch_size if partition == 'train' else 1
+    #         shuffle = True if partition == 'train' else False  # shuffle only for train partition
+    #         data_loader[partition] = torch.utils.data.DataLoader(set, batch_size=batch_size, shuffle=shuffle, num_workers=4,
+    #                                                          worker_init_fn=seed_worker, collate_fn=custom_collate_fn)
+    #     data_loaders.append(data_loader)
+    # id2data_loaders = {i:d for i,d in zip(test_ids, data_loaders)}
+    data_loaders, id2data_loaders = create_data_loaders(data, test_ids)
+
     # subject id to personalised model cp
     personalised_cps = train_personalised_models(model=model, temp_dir=temp_dir, data_loaders=data_loaders, subject_ids=test_ids, epochs=epochs,
                               lr=lr, use_gpu=use_gpu, loss_fn=loss_fn, eval_fn=eval_fn,

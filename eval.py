@@ -54,8 +54,10 @@ def mean_pearsons(preds, labels):
 
 
 def calc_auc(preds, labels):
-    preds = np.concatenate(preds)
-    labels = np.concatenate(labels)
+    if not type(preds) == np.ndarray:
+        preds = np.concatenate(preds)
+    if not type(labels) == np.ndarray:
+        labels = np.concatenate(labels)
 
     fpr, tpr, thresholds = roc_curve(labels, preds)
     return auc(fpr, tpr)
@@ -71,14 +73,15 @@ def write_reaction_predictions(full_metas, full_preds, csv_dir, filename):
     return None
 
 
-def write_predictions(task, full_metas, full_preds, prediction_path, filename):
+def write_predictions(task, full_metas, full_preds, full_labels, prediction_path, filename):
     assert prediction_path != ''
 
     if not os.path.exists(prediction_path):
         os.makedirs(prediction_path)
 
     if task == MIMIC:
-        return write_reaction_predictions(full_metas, full_preds, prediction_path, filename)
+        # TODO adapt
+        return write_reaction_predictions(full_metas, full_preds, full_labels, prediction_path, filename)
 
     metas_flat = []
     for meta in full_metas:
@@ -86,6 +89,10 @@ def write_predictions(task, full_metas, full_preds, prediction_path, filename):
     preds_flat = []
     for pred in full_preds:
         preds_flat.extend(pred if isinstance(pred, list) else (pred.squeeze() if pred.ndim > 1 else pred))
+
+    labels_flat = []
+    for label in full_labels:
+        labels_flat.extend(label if isinstance(label, list) else (label.squeeze() if label.ndim > 1 else label))
 
     if isinstance(metas_flat[0], list):
         num_meta_cols = len(metas_flat[0])
@@ -96,7 +103,7 @@ def write_predictions(task, full_metas, full_preds, prediction_path, filename):
     for i in range(num_meta_cols):
         prediction_df[f'meta_col_{i}'] = [m[i] for m in metas_flat]
     prediction_df['prediction'] = preds_flat
-    # prediction_df['label'] = labels_flat
+    prediction_df['label'] = labels_flat
     prediction_df.to_csv(os.path.join(prediction_path, filename), index=False)
 
 
@@ -174,7 +181,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
             full_preds.append(preds.cpu().detach().squeeze().numpy().tolist()[:cutoff])
 
         if predict:
-            write_predictions(task, full_metas, full_preds, prediction_path, filename)
+            write_predictions(task, full_metas, full_preds, full_labels, prediction_path, filename)
             return
         else:
             if task == PERSONALISATION:

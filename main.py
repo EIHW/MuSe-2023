@@ -21,7 +21,7 @@ from utils import Logger, seed_worker, log_results
 
 def parse_args():
 
-    parser = argparse.ArgumentParser(description='MuSe 2022.')
+    parser = argparse.ArgumentParser(description='MuSe 2023.')
 
     parser.add_argument('--task', type=str, required=True, choices=TASKS,
                         help=f'Specify the task from {TASKS}.')
@@ -111,21 +111,16 @@ def main(args):
     # ensure reproducibility
     numpy.random.seed(10)
     random.seed(10)
+    torch.manual_seed(args.seed)
 
     # emo_dim only relevant for stress/personalisation
     args.emo_dim = args.emo_dim if args.task==PERSONALISATION else ''
     print('Loading data ...')
     data = load_data(args.task, args.paths, args.feature, args.emo_dim, args.normalize,
                      args.win_len, args.hop_len, save=args.cache)
-    data_loader = {}
-    for partition in data.keys():  # one DataLoader for each partition
-        set = MuSeDataset(data, partition)
-        batch_size = args.batch_size if partition == 'train' else (1 if args.task==PERSONALISATION else 2*args.batch_size)
-        shuffle = True if partition == 'train' else False  # shuffle only for train partition
-        data_loader[partition] = torch.utils.data.DataLoader(set, batch_size=batch_size, shuffle=shuffle, num_workers=4,
-                                                             worker_init_fn=seed_worker, collate_fn=custom_collate_fn)
+    datasets = {partition:MuSeDataset(data, partition) for partition in data.keys()}
 
-    args.d_in = data_loader['train'].dataset.get_feature_dim()
+    args.d_in = datasets['train'].get_feature_dim()
 
     args.n_targets = config.NUM_TARGETS[args.task]
     args.n_to_1 = args.task in config.N_TO_1_TASKS
@@ -138,7 +133,17 @@ def main(args):
         val_losses, val_scores, best_model_files, test_scores = [], [], [], []
 
         for seed in seeds:
+            # move data initialisation below here...
             torch.manual_seed(seed)
+            data_loader = {}
+            for partition,dataset in datasets.items():  # one DataLoader for each partition
+                batch_size = args.batch_size if partition == 'train' else (
+                    1 if args.task == PERSONALISATION else 2 * args.batch_size)
+                shuffle = True if partition == 'train' else False  # shuffle only for train partition
+                data_loader[partition] = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
+                                                                     num_workers=4,
+                                                                     worker_init_fn=seed_worker,
+                                                                     collate_fn=custom_collate_fn)
 
             model = Model(args)
 
@@ -225,7 +230,7 @@ if __name__ == '__main__':
     # adjust your paths in config.py
     args.paths = {'log': os.path.join(config.LOG_FOLDER, args.task) if not args.predict else os.path.join(config.LOG_FOLDER, args.task, 'prediction'),
                   'data': os.path.join(config.DATA_FOLDER, args.task),
-                  'model': os.path.join(config.MODEL_FOLDER, args.task, args.log_file_name if not args.predict else args.eval_model)}
+                  'model': os.path.join(config.MODEL_FOLDER, args.task, args.log_file_name if not (args.predict or args.eval_model) else args.eval_model)}
     if args.predict:
         args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.eval_model)
     for folder in args.paths.values():
