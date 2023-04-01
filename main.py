@@ -187,6 +187,15 @@ def main(args):
         model_file = os.path.join(args.paths['model'], f'model_{args.eval_seed}.pth')
         model = torch.load(model_file, map_location=torch.device('cuda') if torch.cuda.is_available()
         else torch.device('cpu'))
+        data_loader = {}
+        for partition, dataset in datasets.items():  # one DataLoader for each partition
+            batch_size = args.batch_size if partition == 'train' else (
+                1 if args.task == PERSONALISATION else 2 * args.batch_size)
+            shuffle = True if partition == 'train' else False  # shuffle only for train partition
+            data_loader[partition] = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle,
+                                                                 num_workers=4,
+                                                                 worker_init_fn=seed_worker,
+                                                                 collate_fn=custom_collate_fn)
         _, valid_score = evaluate(args.task, model, data_loader['devel'], loss_fn=loss_fn, eval_fn=eval_fn,
                                   use_gpu=args.use_gpu)
         print(f'Evaluating {model_file}:')
