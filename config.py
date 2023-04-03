@@ -15,7 +15,7 @@ PERSONALISATION = 'personalisation'
 TASKS = [MIMIC, HUMOR, PERSONALISATION]
 
 PATH_TO_FEATURES = {
-    MIMIC: os.path.join(BASE_PATH, 'c1_muse_mimic/feats'),
+    MIMIC: os.path.join(BASE_PATH, 'c1_muse_mimic/features'),
     HUMOR: os.path.join(BASE_PATH, 'c2_muse_humor/feature_segments'),
     PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/feature_segments')
 }
@@ -31,7 +31,7 @@ ACTIVATION_FUNCTIONS = {
 
 NUM_TARGETS = {
     HUMOR: 1,
-    MIMIC: 4,
+    MIMIC: 3,
     PERSONALISATION: 1
 }
 
@@ -51,7 +51,7 @@ PATH_TO_METADATA = {
 
 PARTITION_FILES = {task: os.path.join(path_to_meta, 'partition.csv') for task,path_to_meta in PATH_TO_METADATA.items()}
 
-MIMIC_LABELS = ['Approval', 'Rejection', 'Uncertainty', 'Disappointment']
+MIMIC_LABELS = ['Approval_', 'Disappointment_', 'Uncertainty_']
 
 AROUSAL = 'physio-arousal'
 VALENCE = 'valence'

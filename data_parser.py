@@ -253,11 +253,12 @@ def load_mimic_subject(feature, subject_id, normalizer) -> Tuple[List[np.ndarray
     # parse labels
     label_path = PATH_TO_LABELS[MIMIC]
     label_df = pd.read_csv(os.path.join(label_path, 'labels.csv'))
-    labels = label_df[label_df.File_ID == subject_id].iloc[:, 1:].values
+    labels = label_df[label_df.filename == subject_id].iloc[:, 1:].values
     assert labels.shape == (1, len(MIMIC_LABELS)), f"Malformed label file for ID {subject_id}"
 
     feature_path = os.path.join(PATH_TO_FEATURES[MIMIC], feature)
-    feature_df = pd.read_csv(os.path.join(feature_path, f'{subject_id.replace("[", "").replace("]", "")}.csv'))
+    clean_subj_id = subject_id.replace('"','')
+    feature_df = pd.read_csv(os.path.join(feature_path, f'{clean_subj_id}.csv'))
 
     feature_idx = 2
     features = feature_df.iloc[:, feature_idx:].values

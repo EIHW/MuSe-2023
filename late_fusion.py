@@ -11,8 +11,9 @@ def parse_args():
     parser = ArgumentParser()
     parser.add_argument('--task', type=str, required=True, choices=TASKS)
     parser.add_argument('--model_ids', nargs='+', required=True, help='model ids')
+    parser.add_argument('--seeds', nargs='+', required=True, help='seeds')
     parser.add_argument('--weights', nargs='+', required=False, help='Weights for models', type=float)
-    # TODO: not really needed
+    # # TODO: not really needed
     parser.add_argument('--aliases', nargs='+', default=None, help='Preferably shorter aliases for the model ids. '
                                                                    'Optional, script will take the feature names by default.')
     parser.add_argument('--name', type=str, default=None, help='Optional name for the new "feature set". If not given,'
@@ -29,7 +30,11 @@ def parse_args():
     if args.name is None:
         assert args.aliases
         args.name = "+".join(args.aliases)
-    args.prediction_dirs = [os.path.join(PREDICTION_FOLDER, args.task, m) for m in args.model_ids]
+
+    if len(args.seeds) == 1:
+        args.seeds = [args.seeds[0]] * len(args.model_ids)
+    assert len(args.model_ids) == len(args.seeds)
+    args.prediction_dirs = [os.path.join(PREDICTION_FOLDER, args.task, args.model_ids[i], args.seeds[i]) for i in range(len(args.model_ids))]
     return args
 
 

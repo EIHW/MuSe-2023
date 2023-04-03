@@ -101,7 +101,7 @@ def get_loss_fn(task):
 def get_eval_fn(task):
     if task == PERSONALISATION:
         return calc_ccc, 'CCC'
-    elif task == 'reaction':
+    elif task == MIMIC:
         return mean_pearsons, 'Mean Pearsons'
     elif task == HUMOR:
         return calc_auc, 'AUC-Score'
@@ -241,7 +241,7 @@ if __name__ == '__main__':
                   'data': os.path.join(config.DATA_FOLDER, args.task),
                   'model': os.path.join(config.MODEL_FOLDER, args.task, args.log_file_name if not (args.predict or args.eval_model) else args.eval_model)}
     if args.predict:
-        args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.eval_model)
+        args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.eval_model, args.eval_seed)
     for folder in args.paths.values():
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
