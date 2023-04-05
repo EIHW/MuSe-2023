@@ -63,12 +63,17 @@ def calc_auc(preds, labels):
     return auc(fpr, tpr)
 
 
-def write_reaction_predictions(full_metas, full_preds, csv_dir, filename):
+def write_reaction_predictions(full_metas, full_preds, full_labels, csv_dir, filename):
     meta_arr = np.row_stack(full_metas).squeeze()
     preds_arr = np.row_stack(full_preds)
-    pred_df = pd.DataFrame(columns=['File_ID'] + MIMIC_LABELS)
+    labels_arr = np.row_stack(full_labels)
+    pred_cols = [f'pred_{l}' for l in MIMIC_LABELS]
+    label_cols = [f'gs_{l}' for l in MIMIC_LABELS]
+    pred_df = pd.DataFrame(columns=['File_ID'] + pred_cols + label_cols)
     pred_df['File_ID'] = meta_arr
-    pred_df[MIMIC_LABELS] = preds_arr
+    pred_df[pred_cols] = preds_arr
+    pred_df[label_cols] = labels_arr
+
     pred_df.to_csv(os.path.join(csv_dir, filename), index=False)
     return None
 

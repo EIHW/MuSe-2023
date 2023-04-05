@@ -3,7 +3,8 @@ from argparse import ArgumentParser
 import pandas as pd
 import numpy as np
 
-from config import TASKS, PREDICTION_FOLDER
+from config import TASKS, PREDICTION_FOLDER, NUM_TARGETS, MIMIC
+from eval import mean_pearsons, calc_pearsons, calc_ccc
 from main import get_eval_fn
 
 
@@ -24,8 +25,10 @@ def parse_args():
     if not args.aliases is None:
         assert (len(args.aliases) == len(args.model_ids))
 
-    if args.weights:
+    if args.weights and args.task!='mimic':
         assert len(args.weights) == len(args.model_ids)
+    elif args.weights and args.task=='mimic':
+        assert len(args.weights) == len(args.model_ids) or len(args.weights) == NUM_TARGETS['mimic']*len(args.model_ids)
 
     if args.name is None:
         assert args.aliases
@@ -52,6 +55,36 @@ def create_humor_lf(df, weights=None):
     labels = df['label'].values
     return fused_preds, labels
 
+def create_mimic_lf(df, weights=None):
+    pred_arr = df[[c for c in df.columns if c.startswith('pred')]]
+    if weights is None:
+        weights = [1.] * pred_arr.shape[1]
+    if len(weights) < pred_arr.shape[1]:
+        weights = weights * NUM_TARGETS[MIMIC]
+    assert len(weights) == pred_arr.shape[1]
+    num_models = int(pred_arr.shape[1] / NUM_TARGETS[MIMIC])
+    weighted_preds = []
+    for i in range(NUM_TARGETS[MIMIC]):
+        idxs = list(range(i, pred_arr.shape[1], NUM_TARGETS[MIMIC]))
+        target_preds = np.array([pred_arr.iloc[:,i].values for i in idxs]).T # (num_examples, num_models)
+        target_weights = np.array([weights[idx] for idx in idxs])
+        target_weights = target_weights / np.sum(target_weights)
+        for j in range(num_models):
+            target_preds[:,j] = target_preds[:,j]*target_weights[j]
+        weighted_preds.append(np.sum(target_preds, axis=1))
+    weighted_preds = np.array(weighted_preds).T
+    labels = df[[c for c in df.columns if c.startswith('gs')]].values[:,:NUM_TARGETS[MIMIC]]
+    return weighted_preds, labels
+
+# more complex eval for mimic
+def eval_mimic(preds, labels):
+    mean_pearson = mean_pearsons(preds, labels)
+    class_wise = [calc_pearsons(preds[:,i], labels[:,i]) for i in range(labels.shape[1])]
+    class_wise_cccs = [calc_ccc(preds[:,i], labels[:,i]) for i in range(labels.shape[1])]
+    print(f'Mean Pearson: {mean_pearson}')
+    for c in range(len(class_wise)):
+        print(f'Pearson for class {c}: {class_wise[c]}')
+        print(f'CCC for class {c}: {class_wise_cccs[c]}')
 
 if __name__ == '__main__':
     args = parse_args()
@@ -79,8 +112,15 @@ if __name__ == '__main__':
 
         if args.task == 'humor':
             preds, labels = create_humor_lf(full_df, weights=args.weights)
+        elif args.task == 'mimic':
+            preds, labels = create_mimic_lf(full_df, weights=args.weights)
+            print(partition)
+            eval_mimic(preds, labels)
+            print()
 
-        eval_fn, eval_str = get_eval_fn(args.task)
-        result = np.round(eval_fn(preds, labels), 4)
-        print(f'{partition}: {result} {eval_str}')
+        if args.task != MIMIC:
+            eval_fn, eval_str = get_eval_fn(args.task)
+
+            result = np.round(eval_fn(preds, labels), 4)
+            print(f'{partition}: {result} {eval_str}')
     pass

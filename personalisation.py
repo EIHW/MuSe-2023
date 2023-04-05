@@ -2,6 +2,8 @@ import pathlib
 from datetime import datetime
 from typing import List, Dict
 
+from glob import glob, escape
+
 import pandas as pd
 from dateutil import tz
 import os
@@ -61,6 +63,11 @@ def parse_args():
     parser.add_argument('--keep_checkpoints', action='store_true', help='Set this in order *not* to delete all the '
                                                                         'personalised checkpoints')
     # TODO add eval logic
+    parser.add_argument('--eval_personalised', type=str, default=None,
+                        help='Specify model which is to be evaluated; no training with this option (default: False).')
+    parser.add_argument('--predict', action='store_true',
+                        help='Specify when no test labels are available; test predictions will be saved '
+                             '(default: False). Incompatible with result_csv')
 
     args = parser.parse_args()
     args.timestamp = datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M-%S")
@@ -68,7 +75,8 @@ def parse_args():
     args.log_file_name = args.run_name
     args.paths = {'log': os.path.join(config.LOG_FOLDER, PERSONALISATION),
                   'data': os.path.join(config.DATA_FOLDER, PERSONALISATION),
-                  'model': os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.log_file_name)}
+                  'model': os.path.join(config.MODEL_FOLDER, PERSONALISATION,
+                                        args.log_file_name if not args.eval_personalised else os.path.join(args.model_id, args.eval_personalised))}
     for folder in args.paths.values():
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
@@ -81,33 +89,87 @@ def parse_args():
     args.feature = args.model_id.split("_")[2][1:-1]
     return args
 
-def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False):
+def get_stats(arr):
+    return {'mean':np.mean(arr), 'std':np.std(arr), 'min':np.min(arr), 'max':np.max(arr)}
+
+def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False,
+                      fallback_model=None):
+    eval_fn, _ = get_eval_fn(PERSONALISATION)
+
     all_dev_labels = []
     all_dev_preds = []
     all_test_labels = []
     all_test_preds = []
+
+    subj_dev_scores = []
+    subj_test_scores = []
+
+    fb_dev_scores = [] if fallback_model else None
+    fb_test_scores = [] if fallback_model else None
+
+
     for subject_id, model_file in personalised_cps.items():
-        model = torch.load(model_file)
-        subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
+        model = torch.load(model_file, config.device)
+        model.eval()
+
+        dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
                                                           data_loader=id2data_loaders[subject_id]['devel'],
                                                           use_gpu=use_gpu)
-        all_dev_labels.append(subj_dev_labels)
-        all_dev_preds.append(subj_dev_preds)
-        subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
-                                                            data_loader=id2data_loaders[subject_id]['test'],
-                                                            use_gpu=use_gpu)
-        all_test_labels.append(subj_test_labels)
-        all_test_preds.append(subj_test_preds)
-    all_dev_labels = np.concatenate(all_dev_labels)
-    all_dev_preds = np.concatenate(all_dev_preds)
-    all_test_labels = np.concatenate(all_test_labels)
-    all_test_preds = np.concatenate(all_test_preds)
+        subj_dev_score = eval_fn(subj_dev_preds, dev_labels)
+        subj_dev_scores.append(subj_dev_score)
+        test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
+                                                          data_loader=id2data_loaders[subject_id]['test'],
+                                                          use_gpu=use_gpu)
+        subj_test_score = eval_fn(subj_test_preds, test_labels)
+        subj_test_scores.append(subj_test_score)
 
-    eval_fn, _ = get_eval_fn(PERSONALISATION)
-    val_score = eval_fn(all_dev_preds, all_dev_labels)
-    test_score = eval_fn(all_test_preds, all_test_labels)
 
-    return all_dev_preds, val_score, all_test_preds, test_score
+        if fallback_model:
+
+            _, fb_dev_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
+                                                          data_loader=id2data_loaders[subject_id]['devel'],
+                                                          use_gpu=use_gpu)
+            fb_dev_score = eval_fn(fb_dev_preds, dev_labels)
+            fb_dev_scores.append(fb_dev_score)
+
+            _, fb_test_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
+                                                          data_loader=id2data_loaders[subject_id]['test'],
+                                                          use_gpu=use_gpu)
+            fb_test_score = eval_fn(fb_test_preds, test_labels)
+            fb_test_scores.append(fb_test_score)
+
+    if not fallback_model:
+        all_dev_scores = subj_dev_scores
+        all_test_scores = subj_test_scores
+    else:
+        fallen_back =[]
+        all_dev_scores = []
+        all_test_scores = []
+        for i in range(len(subj_dev_scores)):
+            subj_better = subj_dev_scores[i] > fb_test_scores[i]
+            all_dev_scores.append(subj_dev_scores[i] if subj_better else fb_dev_scores[i])
+            all_test_scores.append(subj_test_scores[i] if subj_better else fb_test_scores[i])
+            fallen_back.append(not subj_better)
+
+    # all_dev_labels = np.concatenate(all_dev_labels)
+    # all_dev_preds = np.concatenate(all_dev_preds)
+    # all_test_labels = np.concatenate(all_test_labels)
+    # all_test_preds = np.concatenate(all_test_preds)
+    #
+    # eval_fn, _ = get_eval_fn(PERSONALISATION)
+    # val_score = eval_fn(all_dev_preds, all_dev_labels)
+    # test_score = eval_fn(all_test_preds, all_test_labels)
+    val_score = np.mean(all_dev_scores)
+    test_score = np.mean(all_test_scores)
+    val_dict = {'personalised': get_stats(subj_dev_scores), 'overall':get_stats(all_dev_scores)}
+    test_dict = {'personalised': get_stats(subj_test_scores), 'overall':get_stats(all_test_scores)}
+    if fallback_model:
+        val_dict.update({'fallback':get_stats(fb_dev_scores)})
+        test_dict.update({'fallback':get_stats(fb_test_scores)})
+    overall_dict = {'devel':val_dict, 'test':test_dict}
+    if fallback_model:
+        overall_dict.update({'fallen_back':fallen_back})
+    return all_dev_preds, val_score, all_test_preds, test_score, overall_dict
 
 def create_data_loaders(data, test_ids):
     data_loaders = []
@@ -126,12 +188,19 @@ def create_data_loaders(data, test_ids):
     return data_loaders, id2data_loaders
 
 
-def get_trained_predictions(paths, feature, emo_dim, normalize, win_len, hop_len):
+def eval_trained_checkpoints(paths, feature, emo_dim, normalize, win_len, hop_len, cp_dir, use_gpu):
     data, test_ids = load_personalisation_data(paths, feature, emo_dim, normalize=normalize, win_len=win_len,
                                                hop_len=hop_len, save=True,
                                                segment_train=True)
     data_loaders, id2data_loaders = create_data_loaders(data, test_ids)
-    # TODO implement
+    # load personalised cps
+    checkpoints = sorted([cp for cp in glob(os.path.join(escape(cp_dir), 'model_*.pth')) if 'initial' not in os.path.basename(cp)])
+    initial_cp = os.path.join(cp_dir, 'model_initial.pth')
+    initial_model = torch.load(initial_cp, map_location=config.device)
+    initial_model.eval()
+    personalised_cps = {os.path.splitext(os.path.basename(cp))[0].split("_")[1]:cp for cp in checkpoints}
+    return eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
+                                                    use_gpu=use_gpu, fallback_model=initial_model)
 
 
 def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, hop_len, epochs, lr, use_gpu, loss_fn,
@@ -180,7 +249,7 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
     # val_score = eval_fn(all_dev_preds, all_dev_labels)
     # test_score = eval_fn(all_test_preds, all_test_labels)
 
-    _, val_score, _, test_score = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
+    _, val_score, _, test_score,_ = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
                                                     use_gpu=use_gpu)
     return val_score, test_score
 
@@ -233,23 +302,35 @@ if __name__ == '__main__':
     if args.random_init:
         model = random_init(model)
 
-    pers_dir = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
-                            f'{args.checkpoint_seed}_personalised_{args.timestamp}')
-    os.makedirs(pers_dir)
+    if not args.eval_personalised:
+        pers_dir = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
+                                f'{args.checkpoint_seed}_personalised_{args.timestamp}')
+        os.makedirs(pers_dir)
 
-    eval_fn, eval_metric_str = get_eval_fn(PERSONALISATION)
-    loss_fn, loss_fn_str = get_loss_fn(PERSONALISATION)
-    seeds = list(range(args.seed, args.seed + args.n_seeds))
-    # TODO predict logic must be in personalise
-    val_score, test_score = personalise(model=model, feature=args.feature, emo_dim=args.emo_dim, temp_dir=pers_dir, paths=args.paths,
-                normalize=args.normalize, win_len=args.win_len, hop_len=args.hop_len, epochs=args.epochs, lr=args.lr,
-                use_gpu=args.use_gpu, loss_fn=loss_fn,
-                eval_fn=eval_fn, eval_metric_str=eval_metric_str, early_stopping_patience=args.early_stopping_patience,
-                reduce_lr_patience=args.reduce_lr_patience, regularization=args.regularization, seeds=seeds)
-    if args.result_csv:
-        log_personalisation_results(args.result_csv, params=args, metric_name=eval_metric_str, val_score=val_score,
-                                    test_score=test_score)
+        eval_fn, eval_metric_str = get_eval_fn(PERSONALISATION)
+        loss_fn, loss_fn_str = get_loss_fn(PERSONALISATION)
+        seeds = list(range(args.seed, args.seed + args.n_seeds))
+        # TODO predict logic must be in personalise
+        val_score, test_score = personalise(model=model, feature=args.feature, emo_dim=args.emo_dim, temp_dir=pers_dir, paths=args.paths,
+                    normalize=args.normalize, win_len=args.win_len, hop_len=args.hop_len, epochs=args.epochs, lr=args.lr,
+                    use_gpu=args.use_gpu, loss_fn=loss_fn,
+                    eval_fn=eval_fn, eval_metric_str=eval_metric_str, early_stopping_patience=args.early_stopping_patience,
+                    reduce_lr_patience=args.reduce_lr_patience, regularization=args.regularization, seeds=seeds)
+        if args.result_csv:
+            log_personalisation_results(args.result_csv, params=args, metric_name=eval_metric_str, val_score=val_score,
+                                        test_score=test_score)
 
-    if not args.keep_checkpoints:
-        rmtree(pers_dir)
+        if not args.keep_checkpoints:
+            rmtree(pers_dir)
 
+    else:
+        dev_predictions, dev_score, test_predictions, test_score, dct = eval_trained_checkpoints(
+            paths=args.paths, feature=args.feature, emo_dim=args.emo_dim, normalize=args.normalize,
+            win_len=args.win_len, hop_len=args.hop_len, cp_dir=args.paths['model'], use_gpu=args.use_gpu)
+        # TODO print score
+        print(f'[Val CCC]: {dev_score:7.4f}')
+        print(f'[Test CCC]: {test_score:7.4f}')
+        print(dct)
+    # TODO also return predictions above and save them if predict
+    if args.predict:
+        pass

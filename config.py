@@ -6,8 +6,8 @@ import torch
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 # adjust your paths here. Recommended to keep it that way in order not to run into git conflicts
-BASE_PATH = os.path.join(Path(__file__).parent.parent, 'MuSe-2023', 'packages')
-#BASE_PATH = '/home/lukas/Desktop/nas/data_work/LukasChrist/MuSe-2023/packages'
+#BASE_PATH = os.path.join(Path(__file__).parent.parent, 'MuSe-2023', 'packages')
+BASE_PATH = '/home/lukas/Desktop/nas/data_work/LukasChrist/MuSe-2023/packages'
 
 MIMIC = 'mimic'
 HUMOR = 'humor'
