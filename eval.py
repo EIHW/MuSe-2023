@@ -2,6 +2,7 @@ import numpy as np
 import os
 import pandas as pd
 import torch
+from scipy.stats import spearmanr
 from sklearn.metrics import roc_curve, auc
 from scipy import stats
 
@@ -23,6 +24,10 @@ def calc_ccc(preds, labels):
 
     ccc = 2.0 * covariance / (preds_var + labels_var + (preds_mean - labels_mean) ** 2)
     return ccc
+
+
+def calc_spearman(preds, labels):
+    return spearmanr(preds, labels)[0]
 
 
 def mean_ccc(preds, labels):

@@ -328,8 +328,8 @@ if __name__ == '__main__':
             paths=args.paths, feature=args.feature, emo_dim=args.emo_dim, normalize=args.normalize,
             win_len=args.win_len, hop_len=args.hop_len, cp_dir=args.paths['model'], use_gpu=args.use_gpu)
         # TODO print score
-        print(f'[Val CCC]: {dev_score:7.4f}')
-        print(f'[Test CCC]: {test_score:7.4f}')
+        print(f'[Val]: {dev_score:7.4f}')
+        print(f'[Test]: {test_score:7.4f}')
         print(dct)
     # TODO also return predictions above and save them if predict
     if args.predict:

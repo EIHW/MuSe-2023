@@ -12,7 +12,7 @@ import config
 from config import TASKS, PERSONALISATION, HUMOR, MIMIC, AROUSAL, VALENCE, PERSONALISATION_DIMS
 from data_parser import load_data
 from dataset import MuSeDataset, custom_collate_fn
-from eval import evaluate, calc_ccc, calc_auc, mean_pearsons
+from eval import evaluate, calc_ccc, calc_auc, mean_pearsons, calc_spearman
 from loss import CCCLoss, BCELossWrapper, MSELossWrapper
 from model import Model, TRANSFORMER_MODEL, RNN_MODEL
 from train import train_model
@@ -89,7 +89,7 @@ def parse_args():
 
 def get_loss_fn(task):
     if task == PERSONALISATION:
-        return CCCLoss(), 'CCC'
+        return MSELossWrapper(reduction='mean'), 'CCC'
     elif task == HUMOR:
         return BCELossWrapper(), 'Binary Crossentropy'
     elif task == MIMIC:
@@ -100,7 +100,7 @@ def get_loss_fn(task):
 
 def get_eval_fn(task):
     if task == PERSONALISATION:
-        return calc_ccc, 'CCC'
+        return calc_spearman, 'Spearman'
     elif task == MIMIC:
         return mean_pearsons, 'Mean Pearsons'
     elif task == HUMOR:
