@@ -107,8 +107,9 @@ def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str,
     fb_dev_scores = [] if fallback_model else None
     fb_test_scores = [] if fallback_model else None
 
-
-    for subject_id, model_file in personalised_cps.items():
+    subject_ids = sorted(list(personalised_cps.keys()))
+    for subject_id in subject_ids:
+        model_file = personalised_cps[subject_id]
         model = torch.load(model_file, config.device)
         model.eval()
 
@@ -166,7 +167,9 @@ def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str,
     if fallback_model:
         val_dict.update({'fallback':get_stats(fb_dev_scores)})
         test_dict.update({'fallback':get_stats(fb_test_scores)})
-    overall_dict = {'devel':val_dict, 'test':test_dict}
+    overall_dict = {'devel':val_dict, 'test':test_dict,
+                    'individual_devel':{i:s for i,s in zip(subject_ids, all_dev_scores)},
+                    'indvidual_test':{i:s for i,s in zip(subject_ids, all_test_scores)}}
     if fallback_model:
         overall_dict.update({'fallen_back':fallen_back})
     return all_dev_preds, val_score, all_test_preds, test_score, overall_dict

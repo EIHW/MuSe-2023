@@ -106,6 +106,7 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
     os.makedirs(temp_dir)
     # current_seed maybe not the best parameter name here
     initial_cp = save_model(model, model_folder=temp_dir, current_seed='initial')
+    model.train()
     best_model_files = []
     for subject_id, data_loader in zip(subject_ids, data_loaders):
         model = torch.load(initial_cp, map_location=device)
