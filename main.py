@@ -89,7 +89,7 @@ def parse_args():
 
 def get_loss_fn(task):
     if task == PERSONALISATION:
-        return MSELossWrapper(reduction='mean'), 'CCC'
+        return CCCLoss, 'CCC'
     elif task == HUMOR:
         return BCELossWrapper(), 'Binary Crossentropy'
     elif task == MIMIC:
