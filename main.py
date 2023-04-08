@@ -100,7 +100,7 @@ def get_loss_fn(task):
 
 def get_eval_fn(task):
     if task == PERSONALISATION:
-        return calc_spearman, 'Spearman'
+        return calc_ccc, 'CCC'
     elif task == MIMIC:
         return mean_pearsons, 'Mean Pearsons'
     elif task == HUMOR:

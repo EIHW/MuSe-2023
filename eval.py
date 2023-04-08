@@ -2,6 +2,7 @@ import numpy as np
 import os
 import pandas as pd
 import torch
+from audmetric import concordance_cc
 from scipy.stats import spearmanr
 from sklearn.metrics import roc_curve, auc
 from scipy import stats
@@ -16,14 +17,7 @@ def calc_ccc(preds, labels):
     :param labels: 1D np array
     :return:
     """
-
-    preds_mean, labels_mean = np.mean(preds), np.mean(labels)
-    cov_mat = np.cov(preds, labels)
-    covariance = cov_mat[0, 1]
-    preds_var, labels_var = cov_mat[0, 0], cov_mat[1, 1]
-
-    ccc = 2.0 * covariance / (preds_var + labels_var + (preds_mean - labels_mean) ** 2)
-    return ccc
+    return concordance_cc(labels, preds)
 
 
 def calc_spearman(preds, labels):
