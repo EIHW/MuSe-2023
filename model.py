@@ -125,7 +125,7 @@ class OutLayer(nn.Module):
 
 
 class Model(nn.Module):
-    def __init__(self, params, return_representation=False):
+    def __init__(self, params):
         super(Model, self).__init__()
         self.params = params
 
@@ -141,16 +141,13 @@ class Model(nn.Module):
         d_rnn_out = params.model_dim * 2 if params.rnn_bi and params.rnn_n_layers > 0 else params.model_dim
         self.out = OutLayer(d_rnn_out, params.d_fc_out, params.n_targets, dropout=params.linear_dropout)
         self.final_activation = ACTIVATION_FUNCTIONS[params.task]()
-        self.return_representation = return_representation
 
     def forward(self, x, x_len):
         x = self.inp(x)
         x = self.encoder(x, x_len)
         y = self.out(x)
         activation = self.final_activation(y)
-        if self.return_representation:
-            return y,activation
-        return y
+        return activation
 
     def set_n_to_1(self, n_to_1):
         self.encoder.n_to_1 = n_to_1
