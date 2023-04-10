@@ -92,87 +92,115 @@ def parse_args():
 def get_stats(arr):
     return {'mean':np.mean(arr), 'std':np.std(arr), 'min':np.min(arr), 'max':np.max(arr)}
 
-def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False,
-                      fallback_model=None):
-    eval_fn, _ = get_eval_fn(PERSONALISATION)
+# def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False,
+#                       fallback_model=None):
+#     eval_fn, _ = get_eval_fn(PERSONALISATION)
+#
+#     all_dev_labels = []
+#     all_dev_preds = []
+#     all_test_labels = []
+#     all_test_preds = []
+#
+#     subj_dev_scores = []
+#     subj_test_scores = []
+#
+#     fb_dev_scores = [] if fallback_model else None
+#     fb_test_scores = [] if fallback_model else None
+#
+#     subject_ids = sorted(list(personalised_cps.keys()))
+#     for subject_id in subject_ids:
+#         model_file = personalised_cps[subject_id]
+#         model = torch.load(model_file, config.device)
+#         model.eval()
+#
+#         dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
+#                                                           data_loader=id2data_loaders[subject_id]['devel'],
+#                                                           use_gpu=use_gpu)
+#         subj_dev_score = eval_fn(subj_dev_preds, dev_labels)
+#         subj_dev_scores.append(subj_dev_score)
+#         test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
+#                                                           data_loader=id2data_loaders[subject_id]['test'],
+#                                                           use_gpu=use_gpu)
+#         subj_test_score = eval_fn(subj_test_preds, test_labels)
+#         subj_test_scores.append(subj_test_score)
+#
+#
+#         if fallback_model:
+#
+#             _, fb_dev_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
+#                                                           data_loader=id2data_loaders[subject_id]['devel'],
+#                                                           use_gpu=use_gpu)
+#             fb_dev_score = eval_fn(fb_dev_preds, dev_labels)
+#             fb_dev_scores.append(fb_dev_score)
+#
+#             _, fb_test_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
+#                                                           data_loader=id2data_loaders[subject_id]['test'],
+#                                                           use_gpu=use_gpu)
+#             fb_test_score = eval_fn(fb_test_preds, test_labels)
+#             fb_test_scores.append(fb_test_score)
+#
+#     if not fallback_model:
+#         all_dev_scores = subj_dev_scores
+#         all_test_scores = subj_test_scores
+#     else:
+#         fallen_back =[]
+#         all_dev_scores = []
+#         all_test_scores = []
+#         for i in range(len(subj_dev_scores)):
+#             subj_better = subj_dev_scores[i] > fb_test_scores[i]
+#             all_dev_scores.append(subj_dev_scores[i] if subj_better else fb_dev_scores[i])
+#             all_test_scores.append(subj_test_scores[i] if subj_better else fb_test_scores[i])
+#             fallen_back.append(not subj_better)
+#
+#     # all_dev_labels = np.concatenate(all_dev_labels)
+#     # all_dev_preds = np.concatenate(all_dev_preds)
+#     # all_test_labels = np.concatenate(all_test_labels)
+#     # all_test_preds = np.concatenate(all_test_preds)
+#     #
+#     # eval_fn, _ = get_eval_fn(PERSONALISATION)
+#     # val_score = eval_fn(all_dev_preds, all_dev_labels)
+#     # test_score = eval_fn(all_test_preds, all_test_labels)
+#     val_score = np.mean(all_dev_scores)
+#     test_score = np.mean(all_test_scores)
+#     val_dict = {'personalised': get_stats(subj_dev_scores), 'overall':get_stats(all_dev_scores)}
+#     test_dict = {'personalised': get_stats(subj_test_scores), 'overall':get_stats(all_test_scores)}
+#     if fallback_model:
+#         val_dict.update({'fallback':get_stats(fb_dev_scores)})
+#         test_dict.update({'fallback':get_stats(fb_test_scores)})
+#     overall_dict = {'devel':val_dict, 'test':test_dict,
+#                     'individual_devel':{i:s for i,s in zip(subject_ids, all_dev_scores)},
+#                     'indvidual_test':{i:s for i,s in zip(subject_ids, all_test_scores)}}
+#     if fallback_model:
+#         overall_dict.update({'fallen_back':fallen_back})
+#     return all_dev_preds, val_score, all_test_preds, test_score, overall_dict
 
+def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False):
     all_dev_labels = []
     all_dev_preds = []
     all_test_labels = []
     all_test_preds = []
-
-    subj_dev_scores = []
-    subj_test_scores = []
-
-    fb_dev_scores = [] if fallback_model else None
-    fb_test_scores = [] if fallback_model else None
-
-    subject_ids = sorted(list(personalised_cps.keys()))
-    for subject_id in subject_ids:
-        model_file = personalised_cps[subject_id]
-        model = torch.load(model_file, config.device)
-        model.eval()
-
-        dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
+    for subject_id, model_file in personalised_cps.items():
+        model = torch.load(model_file)
+        subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
                                                           data_loader=id2data_loaders[subject_id]['devel'],
                                                           use_gpu=use_gpu)
-        subj_dev_score = eval_fn(subj_dev_preds, dev_labels)
-        subj_dev_scores.append(subj_dev_score)
-        test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
-                                                          data_loader=id2data_loaders[subject_id]['test'],
-                                                          use_gpu=use_gpu)
-        subj_test_score = eval_fn(subj_test_preds, test_labels)
-        subj_test_scores.append(subj_test_score)
+        all_dev_labels.append(subj_dev_labels)
+        all_dev_preds.append(subj_dev_preds)
+        subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
+                                                            data_loader=id2data_loaders[subject_id]['test'],
+                                                            use_gpu=use_gpu)
+        all_test_labels.append(subj_test_labels)
+        all_test_preds.append(subj_test_preds)
+    all_dev_labels = np.concatenate(all_dev_labels)
+    all_dev_preds = np.concatenate(all_dev_preds)
+    all_test_labels = np.concatenate(all_test_labels)
+    all_test_preds = np.concatenate(all_test_preds)
 
+    eval_fn, _ = get_eval_fn(PERSONALISATION)
+    val_score = eval_fn(all_dev_preds, all_dev_labels)
+    test_score = eval_fn(all_test_preds, all_test_labels)
 
-        if fallback_model:
-
-            _, fb_dev_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
-                                                          data_loader=id2data_loaders[subject_id]['devel'],
-                                                          use_gpu=use_gpu)
-            fb_dev_score = eval_fn(fb_dev_preds, dev_labels)
-            fb_dev_scores.append(fb_dev_score)
-
-            _, fb_test_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
-                                                          data_loader=id2data_loaders[subject_id]['test'],
-                                                          use_gpu=use_gpu)
-            fb_test_score = eval_fn(fb_test_preds, test_labels)
-            fb_test_scores.append(fb_test_score)
-
-    if not fallback_model:
-        all_dev_scores = subj_dev_scores
-        all_test_scores = subj_test_scores
-    else:
-        fallen_back =[]
-        all_dev_scores = []
-        all_test_scores = []
-        for i in range(len(subj_dev_scores)):
-            subj_better = subj_dev_scores[i] > fb_test_scores[i]
-            all_dev_scores.append(subj_dev_scores[i] if subj_better else fb_dev_scores[i])
-            all_test_scores.append(subj_test_scores[i] if subj_better else fb_test_scores[i])
-            fallen_back.append(not subj_better)
-
-    # all_dev_labels = np.concatenate(all_dev_labels)
-    # all_dev_preds = np.concatenate(all_dev_preds)
-    # all_test_labels = np.concatenate(all_test_labels)
-    # all_test_preds = np.concatenate(all_test_preds)
-    #
-    # eval_fn, _ = get_eval_fn(PERSONALISATION)
-    # val_score = eval_fn(all_dev_preds, all_dev_labels)
-    # test_score = eval_fn(all_test_preds, all_test_labels)
-    val_score = np.mean(all_dev_scores)
-    test_score = np.mean(all_test_scores)
-    val_dict = {'personalised': get_stats(subj_dev_scores), 'overall':get_stats(all_dev_scores)}
-    test_dict = {'personalised': get_stats(subj_test_scores), 'overall':get_stats(all_test_scores)}
-    if fallback_model:
-        val_dict.update({'fallback':get_stats(fb_dev_scores)})
-        test_dict.update({'fallback':get_stats(fb_test_scores)})
-    overall_dict = {'devel':val_dict, 'test':test_dict,
-                    'individual_devel':{i:s for i,s in zip(subject_ids, all_dev_scores)},
-                    'indvidual_test':{i:s for i,s in zip(subject_ids, all_test_scores)}}
-    if fallback_model:
-        overall_dict.update({'fallen_back':fallen_back})
-    return all_dev_preds, val_score, all_test_preds, test_score, overall_dict
+    return all_dev_preds, val_score, all_test_preds, test_score
 
 def create_data_loaders(data, test_ids):
     data_loaders = []
@@ -319,6 +347,9 @@ if __name__ == '__main__':
                     use_gpu=args.use_gpu, loss_fn=loss_fn,
                     eval_fn=eval_fn, eval_metric_str=eval_metric_str, early_stopping_patience=args.early_stopping_patience,
                     reduce_lr_patience=args.reduce_lr_patience, regularization=args.regularization, seeds=seeds)
+        print('Finished personalisation. Results:')
+        print(f'[Val]: {val_score:7.4f}')
+        print(f'[Test]: {test_score:7.4f}')
         if args.result_csv:
             log_personalisation_results(args.result_csv, params=args, metric_name=eval_metric_str, val_score=val_score,
                                         test_score=test_score)
