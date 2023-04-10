@@ -10,6 +10,7 @@ from torch.utils.data import DataLoader
 
 from config import device, PERSONALISATION
 from eval import evaluate
+from model import PersonalisedModel
 
 
 def train(model, train_loader, optimizer, loss_fn, use_gpu=False):
@@ -32,7 +33,7 @@ def train(model, train_loader, optimizer, loss_fn, use_gpu=False):
 
         optimizer.zero_grad()
 
-        preds = model(features, feature_lens)
+        preds,_ = model(features, feature_lens)
 
         loss = loss_fn(preds.squeeze(-1), labels.squeeze(-1), feature_lens)
 
@@ -157,6 +158,8 @@ def train_personalised_models_v2(initial_model, temp_dir, data_loaders:List[Dict
 
     for subject_id, data_loader in zip(subject_ids, data_loaders):
         initial_model = torch.load(initial_cp, map_location=device)
+        # compatibility
+        model = PersonalisedModel(initial_model)
         train_loader, val_loader, test_loader = data_loader['train'], data_loader['devel'], data_loader['test']
         val_loss_before, val_score_before = evaluate(PERSONALISATION, initial_model, val_loader, loss_fn=loss_fn, eval_fn=eval_fn, use_gpu=use_gpu)
         #model.train()

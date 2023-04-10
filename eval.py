@@ -1,3 +1,4 @@
+import audmetric
 import numpy as np
 import os
 import pandas as pd
@@ -9,21 +10,24 @@ from scipy import stats
 from config import MIMIC_LABELS, MIMIC, PERSONALISATION
 
 
+# def calc_ccc(preds, labels):
+#     """
+#     Concordance Correlation Coefficient
+#     :param preds: 1D np array
+#     :param labels: 1D np array
+#     :return:
+#     """
+#
+#     preds_mean, labels_mean = np.mean(preds), np.mean(labels)
+#     cov_mat = np.cov(preds, labels)
+#     covariance = cov_mat[0, 1]
+#     preds_var, labels_var = cov_mat[0, 0], cov_mat[1, 1]
+#
+#     ccc = 2.0 * covariance / (preds_var + labels_var + (preds_mean - labels_mean) ** 2)
+#     return ccc
+
 def calc_ccc(preds, labels):
-    """
-    Concordance Correlation Coefficient
-    :param preds: 1D np array
-    :param labels: 1D np array
-    :return:
-    """
-
-    preds_mean, labels_mean = np.mean(preds), np.mean(labels)
-    cov_mat = np.cov(preds, labels)
-    covariance = cov_mat[0, 1]
-    preds_var, labels_var = cov_mat[0, 0], cov_mat[1, 1]
-
-    ccc = 2.0 * covariance / (preds_var + labels_var + (preds_mean - labels_mean) ** 2)
-    return ccc
+    return audmetric.concordance_cc(preds, labels)
 
 
 def calc_spearman(preds, labels):
@@ -133,7 +137,7 @@ def get_predictions(model, task, data_loader, use_gpu=False):
                 feature_lens = feature_lens.cuda()
                 labels = labels.cuda()
 
-            preds = model(features, feature_lens)
+            preds,_ = model(features, feature_lens)
 
             # only relevant for stress
             feature_lens = feature_lens.detach().cpu().tolist()
@@ -174,7 +178,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
                 feature_lens = feature_lens.cuda()
                 labels = labels.cuda()
 
-            preds = model(features, feature_lens)
+            preds,_ = model(features, feature_lens)
 
             # only relevant for stress
             feature_lens = feature_lens.detach().cpu().tolist()

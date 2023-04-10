@@ -3,7 +3,7 @@ import torch
 import torch.nn as nn
 from torch.nn.utils.rnn import pad_packed_sequence, pack_padded_sequence
 import torch.nn.functional as F
-from config import ACTIVATION_FUNCTIONS, device
+from config import ACTIVATION_FUNCTIONS, device, PERSONALISATION
 
 RNN_MODEL = 'rnn'
 TRANSFORMER_MODEL = 'transformer'
@@ -147,7 +147,27 @@ class Model(nn.Module):
         x = self.encoder(x, x_len)
         y = self.out(x)
         activation = self.final_activation(y)
-        return activation
+        return activation, x
 
     def set_n_to_1(self, n_to_1):
         self.encoder.n_to_1 = n_to_1
+
+
+class PersonalisedModel(nn.Module):
+    def __init__(self, wrapped_model:Model, hidden_size=64):
+        super(PersonalisedModel, self).__init__()
+        self.wrapped_model = wrapped_model
+        # freeze
+        for param in self.wrapped_model.parameters():
+            param.requires_grad = False
+        self.dropout = nn.Dropout(0.5)
+        # TODO parameter
+        self.hidden = nn.Linear(64, hidden_size)
+        self.out = nn.Linear(hidden_size, 1)
+
+        self.final_activation = ACTIVATION_FUNCTIONS[PERSONALISATION]()
+
+    def forward(self, x, x_len):
+        wrapped_pred, wrapped_enc = self.wrapped_model(x, x_len)
+        pers_pred = self.final_activation(self.out(self.hidden(self.dropout(wrapped_enc))))
+        return pers_pred, wrapped_pred

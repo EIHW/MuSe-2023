@@ -92,7 +92,7 @@ def parse_args():
 def get_stats(arr):
     return {'mean':np.mean(arr), 'std':np.std(arr), 'min':np.min(arr), 'max':np.max(arr)}
 
-def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False,
+def eval_personalised_v2(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False,
                       fallback_model=None):
     eval_fn, _ = get_eval_fn(PERSONALISATION)
 
@@ -230,7 +230,7 @@ def personalise(initial_model, feature, emo_dim, temp_dir, paths, normalize, win
                                 eval_metric_str=eval_metric_str, early_stopping_patience=early_stopping_patience,
                               reduce_lr_patience=reduce_lr_patience, regularization = regularization, seeds=seeds)
 
-    _, val_score, _, test_score,_ = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
+    _, val_score, _, test_score,_ = eval_personalised_v2(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
                                                     use_gpu=use_gpu)
     return val_score, test_score
 
