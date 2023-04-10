@@ -184,7 +184,11 @@ def train_personalised_models_v2(initial_model, temp_dir, data_loaders:List[Dict
                                           reduce_lr_patience=reduce_lr_patience, regularization=regularization)
             if seed_val_score > best_val_score:
                 best_val_score = seed_val_score
+                if os.path.exists(best_model_file):
+                    os.remove(best_model_file)
                 best_model_file = seed_model_file
+            else:
+                os.remove(seed_model_file)
 
         print(f'After personalisation {"- personalisation did not help" if best_val_score==val_score_before else ""} '
               f'| [Val] '
