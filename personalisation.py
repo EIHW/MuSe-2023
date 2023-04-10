@@ -280,7 +280,7 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
     # val_score = eval_fn(all_dev_preds, all_dev_labels)
     # test_score = eval_fn(all_test_preds, all_test_labels)
 
-    _, val_score, _, test_score,_ = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
+    _, val_score, _, test_score = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
                                                     use_gpu=use_gpu)
     return val_score, test_score
 
@@ -358,13 +358,13 @@ if __name__ == '__main__':
             rmtree(pers_dir)
 
     else:
-        dev_predictions, dev_score, test_predictions, test_score, dct = eval_trained_checkpoints(
+        dev_predictions, dev_score, test_predictions, test_score = eval_trained_checkpoints(
             paths=args.paths, feature=args.feature, emo_dim=args.emo_dim, normalize=args.normalize,
             win_len=args.win_len, hop_len=args.hop_len, cp_dir=args.paths['model'], use_gpu=args.use_gpu)
         # TODO print score
         print(f'[Val]: {dev_score:7.4f}')
         print(f'[Test]: {test_score:7.4f}')
-        print(dct)
+        #print(dct)
     # TODO also return predictions above and save them if predict
     if args.predict:
         pass
