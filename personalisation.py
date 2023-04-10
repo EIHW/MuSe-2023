@@ -180,7 +180,7 @@ def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str,
     all_test_labels = []
     all_test_preds = []
     for subject_id, model_file in personalised_cps.items():
-        model = torch.load(model_file)
+        model = torch.load(model_file, map_location=config.device)
         subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
                                                           data_loader=id2data_loaders[subject_id]['devel'],
                                                           use_gpu=use_gpu)
@@ -231,7 +231,7 @@ def eval_trained_checkpoints(paths, feature, emo_dim, normalize, win_len, hop_le
     initial_model.eval()
     personalised_cps = {os.path.splitext(os.path.basename(cp))[0].split("_")[1]:cp for cp in checkpoints}
     return eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
-                                                    use_gpu=use_gpu, fallback_model=initial_model)
+                                                    use_gpu=use_gpu)
 
 
 def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, hop_len, epochs, lr, use_gpu, loss_fn,
