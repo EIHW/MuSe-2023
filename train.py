@@ -145,7 +145,8 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
                 # save it as the subject's model
                 save_model(model, temp_dir, subject_id)
             # remove the checkpoint
-            os.remove(seed_model_file)
+            if os.path.exists(seed_model_file):
+                os.remove(seed_model_file)
 
         print(f'After personalisation {"- personalisation did not help" if best_val_score==val_score_before else ""} '
               f'| [Val] '
