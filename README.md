@@ -1,4 +1,4 @@
-# MuSe-2022 Baseline Model: LSTM Regressor
+# MuSe-2023 Baseline Model: GRU Regressor
 
 [Homepage](https://www.muse-challenge.org) || [Baseline Paper](http://dx.doi.org/10.13140/RG.2.2.33203.91681)
 
@@ -7,13 +7,15 @@
 For details, please see the [Baseline Paper](http://dx.doi.org/10.13140/RG.2.2.33203.91681). If you want to sign up for the challenge, please fill the form 
 [here](https://www.muse-challenge.org/challenge/participation) for MuSe-Humor and MuSe-Stress. For MuSe-Reaction, please contact competitions \[at\] hume.ai 
 
-* MuSe-Humor: predicting presence/absence of humor in football press conference recordings. 
-*Official baseline*: **.8480** AUC.
+* MuSe-Mimic: predicting the intensity of three emotions (Approval, Disappointment, Uncertainty). 
+ *Official baseline* : **.4727** mean Pearson's correlation over all three classes.
 
-* MuSe-Reaction: predicting the intensity of seven emotions (Adoration, Amusement, Anxiety, Disgust, Empathic Pain, Fear,
-Surprise). *Official baseline* : **.2801** mean Pearson's correlation over all seven classes.
-* MuSe-Stress: regression on valence and arousal signals for persons in a stressed disposition. *Official baselines*:
-**.4931** CCC for valence, **.4761** CCC for (physiological) arousal, **.4585** CCC as the mean of best CCC for arousal and 
+* MuSe-Humor: predicting presence/absence of humour in cross-cultural (German/English) football press conference recordings. 
+*Official baseline*: **.8310** AUC.
+
+* MuSe-Personalisation: regression on valence and arousal signals for persons in a stressed disposition. In order to
+facilitate personalisation, parts of the test subjects' labels are provided as well. *Official baselines*:
+**.7827** CCC for valence, **.7482** CCC for (physiological) arousal, **.7639** CCC as the mean of best CCC for arousal and 
 best CCC for valence (*Combined*). Note that the *Combined* score will be used to determine the challenge winner.
 
 ## Installation
@@ -23,65 +25,72 @@ in ``requirements.txt`` and adjust the paths in `config.py` (especially ``BASE_P
 You can then e.g. run the unimodal baseline reproduction calls in the ``*.sh`` file provided for each sub-challenge.
 
 ## Settings
-The ``main.py`` script is used for training and evaluating models. Most important options:
-* ``--task``: choose either `humor`, `reaction` or `stress` 
+The ``main.py`` script is used for training and evaluating models for MuSe-Mimic, MuSe-Humor and the first step of the 
+personalisation method applied for MuSe-Personalisation (cf. baseline paper).  Most important options:
+* ``--task``: choose either `humor`, `mimic` or `personalisation` 
 * ``--feature``: choose a feature set provided in the data (in the ``PATH_TO_FEATURES`` defined in ``config.py``). Adding 
-``--normalize`` ensures normalization of features (recommended for eGeMAPS features).
+``--normalize`` ensures normalization of features (recommended for ``eGeMAPS`` and ``ViT`` features).
 * Options defining the model architecture: ``d_rnn``, ``rnn_n_layers``, ``rnn_bi``, ``d_fc_out``
 * Options for the training process: ``--epochs``, ``--lr``, ``--seed``,  ``--n_seeds``, ``--early_stopping_patience``,
 ``--reduce_lr_patience``,   ``--rnn_dropout``, ``--linear_dropout``
 * In order to use a GPU, please add the flag ``--use_gpu``
-* Specific parameters for MuSe-Stress: ``emo_dim`` (``valence`` or ``physio-arousal``), ``win_len`` and ``hop_len`` for segmentation.
+* Predict labels for the test set: ``--predict``
+* Specific parameters for MuSe-Personalisation: ``emo_dim`` (``valence`` or ``physio-arousal``), ``win_len`` and ``hop_len`` for segmentation.
 
 For more details, please see the ``parse_args()`` method in ``main.py``. 
 
-## Reproducing the baselines 
+The second step of the personalisation pipeline is implemented in ``personalisation.py``:
+* ``--model_id``: The model to train on subject-specific data, as saved by ``main.py`` before. This ID looks like ``RNN_2023-04-11-09-11_[egemaps]_[valence]_[256_4_False_64]_[0.002_256]``, 
+see the checkpoint directories created by ``main.py``
+* ``--checkpoint_seed``: The specific seed of the model given by ``model_id`` (``main.py`` stores the checkpoint for every seed)
+* ``emo_dim``: ``valence`` or ``physio-arousal`` 
+* ``--eval_personalised``: evaluate a model previously created by ``personalisation.py``. Such models are stored in the 
+same checkpoint directory as the underlying general model (as specified by ``--model_id``). This argument expects the
+directory name of the personalised checkpoints, such as ``102_personalised_2023-04-11-14-36-31`` 
+* The remaining arguments are analogous to those of ``main.py``
 
-### Unimodal results
+## Reproducing the baselines 
+Please note that exact reproducibility can not be expected due to hardware 
+### Unimodal models
 For every challenge, a ``*.sh`` file is provided with the respective call (and, thus, configuration) for each of the precomputed features.
-Moreover, you can directly load one of the provided checkpoints corresponding to the results in the baseline paper.
-For MuSe-Humor, you can download the checkpoints [here](https://drive.google.com/drive/folders/14rBQ9ZKfClXK8z8JKTdxKGnLuxEdJS4Z?usp=sharing). 
-The checkpoints for MuSe-Stress can be found [here](https://drive.google.com/drive/folders/1DYGEdH3WNNmu-ULTaO3RXnh_ALLA9QEv?usp=sharing).
-Regarding MuSe-Reaction, the checkpoints are only available to registered participants. 
+Moreover, you can directly load one of the checkpoints corresponding to the results in the baseline paper. Note that 
+the checkpoints are only available to registered participants. 
+
 A checkpoint model can be loaded and evaluated as follows:
 
-`` main.py --task humor --feature vggface2 --eval_model /your/checkpoint/directory/vggface2/model_102.pth`` 
+`` main.py --task humor --feature facenet --eval_model /your/checkpoint/directory/facenet/model_102.pth`` 
 
-Note that egemaps features must be normalized (``--normalize``).
+Note that it is recommended to normalise egemaps and ViT features (``--normalize``).
 
-### Fusion results 
 
-#### Late Fusion (MuSe-Humor, MuSe-Stress)
-The idea of the late fusion implementation is to treat the predictions to be fused as a new feature set that is 
-stored in the feature directory (alongside with e.g. ``egemaps``, ``ds`` etc.). The script ``late_fusion.py`` creates 
-such a feature set, given trained models. Example call:
+### Late Fusion
+We utilise a simple late fusion approach, which averages different models' predictions. 
+First, predictions for development and test set have to be created using the ``--predict`` option in ``main.py`` or 
+``personalisation.py``, respectively. This will create folders under the folder specified as prediction directory in ``config.py``.
 
-`` python3 late_fusion_preparation.py --task humor --model_ids 2022-03-26-11-04_[ds]_[64_2_True_64]_[0.001_256] 2022-03-26-11-11_[vggface2]_[64_2_True_64]_[0.0001_256] --checkpoint_seeds 105 102``
+Then, ``late_fusion.py`` merges these predictions:
+* ``--task``: choose either `humor`, `mimic` or `personalisation` 
+* ``--model_ids``: list of model IDs, whose predictions are to be merged. These predictions must first be created (``--predict`` in ``main.py`` or ``personalisation.py``)
+* ``--seeds`` (only for MuSe-Humor and MuSe-Mimic): seeds for the respective model IDs. 
+* ``--weights``: optional weights for every prediction file
+* ``--emo_dim`` and ``--personalised``: Specific for MuSe-Personalisation 
 
-The model ids are directories under ``MODEL_FOLDER/task`` (``MODEL_FOLDER`` is specified in ``config.py``).
-For further details see the ``ArgumentParser`` in ``late_fusion_preparation.py``. 
 
-This script will create a new feature set in the feature directory specified in ``config.py``. This feature set 
-can then be used with the ``main.py`` script as any other feature.
 
-#### Early Fusion (MuSe-Reaction)
-Similarly, for early fusion, an extra feature set is created. The corresponding script is ``early_fusion_preparation.py``.
-Example call: 
-`` python3 early_fusion_preparation.py --task reaction --feature_sets VGGFace2 DeepSpectrum``
 
 ##  Citation:
 
-The MuSe2022 baseline paper is only available in a preliminary version as of now.
+The MuSe2023 baseline paper is only available in a preliminary version as of now.
 
-MuSe 2021 baseline paper:
+MuSe 2022 baseline paper:
 
 ```bibtex
-@incollection{stappen2021muse,
-  title={The MuSe 2021 multimodal sentiment analysis challenge: sentiment, emotion, physiological-emotion, and stress},
-  author={Stappen, Lukas and Baird, Alice and Christ, Lukas and Schumann, Lea and Sertolli, Benjamin and Messner, Eva-Maria and Cambria, Erik and Zhao, Guoying and Schuller, Bj{\"o}rn W},
-  booktitle={Proceedings of the 2nd on Multimodal Sentiment Analysis Challenge},
+@inproceedings{christ2022muse,
+  title={The muse 2022 multimodal sentiment analysis challenge: humor, emotional reactions, and stress},
+  author={Christ, Lukas and Amiriparian, Shahin and Baird, Alice and Tzirakis, Panagiotis and Kathan, Alexander and M{\"u}ller, Niklas and Stappen, Lukas and Me{\ss}ner, Eva-Maria and K{\"o}nig, Andreas and Cowen, Alan and others},
+  booktitle={Proceedings of the 3rd International on Multimodal Sentiment Analysis Workshop and Challenge},
   pages={5--14},
-  year={2021}
+  year={2022}
 }
 
 ```
@@ -89,7 +98,7 @@ MuSe 2021 baseline paper:
 
 
 ## Acknowledgement & Contributors ✨ : 
-We were inspired by our last year's baseline models (https://github.com/lstappen/MuSe2021) and some of the winners to create this baseline code. Thanks to all who contributed, especially:
+Thanks to all who contributed, especially:
 
 <table>
   <tr>

@@ -12,7 +12,7 @@ import config
 from config import TASKS, PERSONALISATION, HUMOR, MIMIC, AROUSAL, VALENCE, PERSONALISATION_DIMS
 from data_parser import load_data
 from dataset import MuSeDataset, custom_collate_fn
-from eval import evaluate, calc_ccc, calc_auc, mean_pearsons, calc_spearman
+from eval import evaluate, calc_ccc, calc_auc, mean_pearsons
 from loss import CCCLoss, BCELossWrapper, MSELossWrapper
 from model import Model, TRANSFORMER_MODEL, RNN_MODEL
 from train import train_model
@@ -35,7 +35,7 @@ def parse_args():
                         help='Specify the window length for segmentation (default: 200 frames).')
     parser.add_argument('--hop_len', type=int, default=100,
                         help='Specify the hop length to for segmentation (default: 100 frames).')
-    parser.add_argument('--model_type', choices=[RNN_MODEL, TRANSFORMER_MODEL], default=RNN_MODEL)
+    #parser.add_argument('--model_type', choices=[RNN_MODEL, TRANSFORMER_MODEL], default=RNN_MODEL)
     parser.add_argument('--model_dim', type=int, default=64,
                         help='Specify the number of hidden states in the RNN (default: 64).')
     parser.add_argument('--rnn_n_layers', type=int, default=1,
@@ -46,10 +46,6 @@ def parse_args():
                         help='Specify the number of hidden neurons in the output layer (default: 64).')
     parser.add_argument('--rnn_dropout', type=float, default=0.2)
     parser.add_argument('--linear_dropout', type=float, default=0.5)
-    parser.add_argument('--trf_num_layers', type=int, default=2)
-    parser.add_argument('--trf_num_heads', type=int, default=2)
-    parser.add_argument('--trf_dropout', type=float, default=0.)
-    parser.add_argument('--trf_mask_windowing', type=int, default=5)
     parser.add_argument('--epochs', type=int, default=100,
                         help='Specify the number of epochs (default: 100).')
     parser.add_argument('--batch_size', type=int, default=256,
@@ -68,13 +64,16 @@ def parse_args():
                         help='Specify whether to use gpu for training (default: False).')
     parser.add_argument('--cache', action='store_true',
                         help='Specify whether to cache data as pickle file (default: False).')
+    # TODO is this even used?
     parser.add_argument('--save_path', type=str, default='preds',
                         help='Specify path where to save the predictions (default: preds).')
     parser.add_argument('--predict', action='store_true',
                         help='Specify when no test labels are available; test predictions will be saved '
                              '(default: False). Incompatible with result_csv')
+    # TODO is this even used?
     parser.add_argument('--regularization', type=float, required=False, default=0.0,
                         help='L2-Penalty')
+    # evaluation only arguments
     parser.add_argument('--eval_model', type=str, default=None,
                         help='Specify model which is to be evaluated; no training with this option (default: False).')
     parser.add_argument('--eval_seed', type=str, default=None,
@@ -84,6 +83,8 @@ def parse_args():
     if not (args.result_csv is None) and args.predict:
         print("--result_csv is not compatible with --predict")
         sys.exit(-1)
+    if args.eval_model:
+        assert args.eval_seed
     return args
 
 
@@ -221,27 +222,23 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
 
-    if args.model_type == RNN_MODEL:
-        args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN',
+    #if args.model_type == RNN_MODEL:
+    args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN',
         datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature, args.emo_dim,
         args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr, args.batch_size) if args.task == PERSONALISATION else \
         '{}_{}_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN', datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature.replace(os.path.sep, "-"),
                                                  args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr,args.batch_size)
-    elif args.model_type == TRANSFORMER_MODEL:
-        args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}_{}]_[{}_{}]'.format('Transformer',
-            datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature, args.emo_dim,
-            args.model_dim, args.trf_num_layers, args.trf_num_heads, args.trf_mask_windowing, args.d_fc_out, args.lr,
-            args.batch_size) if args.task == PERSONALISATION else \
-            '{}_{}_[{}]_[{}_{}_{}_{}_{}]_[{}_{}]'.format('Transformer', datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"),
-                                                   args.feature.replace(os.path.sep, "-"),
-                                                   args.model_dim, args.trf_num_layers, args.trf_num_heads, args.trf_mask_windowing, args.d_fc_out, args.lr, args.batch_size)
 
     # adjust your paths in config.py
     args.paths = {'log': os.path.join(config.LOG_FOLDER, args.task) if not args.predict else os.path.join(config.LOG_FOLDER, args.task, 'prediction'),
                   'data': os.path.join(config.DATA_FOLDER, args.task),
-                  'model': os.path.join(config.MODEL_FOLDER, args.task, args.log_file_name if not (args.predict or args.eval_model) else args.eval_model)}
+                  'model': os.path.join(config.MODEL_FOLDER, args.task, args.log_file_name if not args.eval_model else args.eval_model)}
     if args.predict:
-        args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.eval_model, args.eval_seed)
+        if args.eval_model:
+            args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.eval_model, args.eval_seed)
+        else:
+            args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, args.task, args.log_file_name)
+
     for folder in args.paths.values():
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)

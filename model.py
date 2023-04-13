@@ -132,11 +132,9 @@ class Model(nn.Module):
         # TODO rename parameter
         self.inp = nn.Linear(params.d_in, params.model_dim, bias=False)
 
-        if params.model_type == RNN_MODEL:
-            self.encoder = RNN(params.model_dim, params.model_dim, n_layers=params.rnn_n_layers, bi=params.rnn_bi,
+        self.encoder = RNN(params.model_dim, params.model_dim, n_layers=params.rnn_n_layers, bi=params.rnn_bi,
                            dropout=params.rnn_dropout, n_to_1=params.n_to_1)
-        elif params.model_type == TRANSFORMER_MODEL:
-            self.encoder = TransformerEncoderCustom(params)
+
 
         d_rnn_out = params.model_dim * 2 if params.rnn_bi and params.rnn_n_layers > 0 else params.model_dim
         self.out = OutLayer(d_rnn_out, params.d_fc_out, params.n_targets, dropout=params.linear_dropout)
@@ -151,23 +149,3 @@ class Model(nn.Module):
 
     def set_n_to_1(self, n_to_1):
         self.encoder.n_to_1 = n_to_1
-
-
-class PersonalisedModel(nn.Module):
-    def __init__(self, wrapped_model:Model, hidden_size=64):
-        super(PersonalisedModel, self).__init__()
-        self.wrapped_model = wrapped_model
-        # freeze
-        for param in self.wrapped_model.parameters():
-            param.requires_grad = False
-        self.dropout = nn.Dropout(0.5)
-        # TODO parameter
-        self.hidden = nn.Linear(64, hidden_size)
-        self.out = nn.Linear(hidden_size, 1)
-
-        self.final_activation = ACTIVATION_FUNCTIONS[PERSONALISATION]()
-
-    def forward(self, x, x_len):
-        wrapped_pred, wrapped_enc = self.wrapped_model(x, x_len)
-        pers_pred = self.final_activation(self.out(self.hidden(self.dropout(wrapped_enc))))
-        return pers_pred, wrapped_pred

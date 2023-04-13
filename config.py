@@ -5,7 +5,7 @@ import torch
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-# adjust your paths here. Recommended to keep it that way in order not to run into git conflicts
+# adjust your paths here.
 #BASE_PATH = os.path.join(Path(__file__).parent.parent, 'MuSe-2023', 'packages')
 BASE_PATH = '/home/lukas/Desktop/nas/data_work/LukasChrist/MuSe-2023/packages'
 
@@ -17,7 +17,7 @@ TASKS = [MIMIC, HUMOR, PERSONALISATION]
 PATH_TO_FEATURES = {
     MIMIC: os.path.join(BASE_PATH, 'c1_muse_mimic/features'),
     HUMOR: os.path.join(BASE_PATH, 'c2_muse_humor/feature_segments'),
-    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/feature_segments')
+    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation/feature_segments')
 }
 
 # humor is labelled every 2s, but features are extracted every 500ms
@@ -39,20 +39,20 @@ NUM_TARGETS = {
 PATH_TO_LABELS = {
     MIMIC: os.path.join(BASE_PATH, 'c1_muse_mimic'),
     HUMOR: os.path.join(BASE_PATH, 'c2_muse_humor/label_segments'),
-    # TODO adapt to non-confidential
-    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/label_segments')
+    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation/label_segments')
 }
 
 PATH_TO_METADATA = {
     MIMIC:os.path.join(BASE_PATH, 'c1_muse_mimic'),
     HUMOR: os.path.join(BASE_PATH, 'c2_muse_humor/metadata'),
-    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation_confidential/metadata')
+    PERSONALISATION: os.path.join(BASE_PATH, 'c3_muse_personalisation/metadata')
 }
 
 PARTITION_FILES = {task: os.path.join(path_to_meta, 'partition.csv') for task,path_to_meta in PATH_TO_METADATA.items()}
 
 MIMIC_LABELS = ['Approval_', 'Disappointment_', 'Uncertainty_']
 
+# personalisation labels
 AROUSAL = 'physio-arousal'
 VALENCE = 'valence'
 PERSONALISATION_DIMS = [AROUSAL, VALENCE]

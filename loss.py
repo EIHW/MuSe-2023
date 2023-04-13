@@ -42,6 +42,7 @@ class BCEWithLogitsLossWrapper(nn.Module):
         return self.loss_fn(y_pred, y_true)
 
 
+# wraps MSELoss, but constructor accepts (and ignores) argument seq_lens
 class MSELossWrapper(nn.Module):
 
     def __init__(self, reduction):

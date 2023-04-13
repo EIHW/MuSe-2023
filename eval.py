@@ -3,49 +3,13 @@ import numpy as np
 import os
 import pandas as pd
 import torch
-from scipy.stats import spearmanr
 from sklearn.metrics import roc_curve, auc
 from scipy import stats
 
 from config import MIMIC_LABELS, MIMIC, PERSONALISATION
 
-
-# def calc_ccc(preds, labels):
-#     """
-#     Concordance Correlation Coefficient
-#     :param preds: 1D np array
-#     :param labels: 1D np array
-#     :return:
-#     """
-#
-#     preds_mean, labels_mean = np.mean(preds), np.mean(labels)
-#     cov_mat = np.cov(preds, labels)
-#     covariance = cov_mat[0, 1]
-#     preds_var, labels_var = cov_mat[0, 0], cov_mat[1, 1]
-#
-#     ccc = 2.0 * covariance / (preds_var + labels_var + (preds_mean - labels_mean) ** 2)
-#     return ccc
-
 def calc_ccc(preds, labels):
     return audmetric.concordance_cc(preds, labels)
-
-
-def calc_spearman(preds, labels):
-    return spearmanr(preds, labels)[0]
-
-
-def mean_ccc(preds, labels):
-    """
-    :param preds: list of list of lists (num batches, batch_size, num_classes)
-    :param labels: same
-    :return: scalar
-    """
-    preds = np.row_stack([np.array(p) for p in preds])
-    labels = np.row_stack([np.array(l) for l in labels])
-    num_classes = preds.shape[1]
-    class_wise_cccs = np.array([calc_ccc(preds[:, i], labels[:, i]) for i in range(num_classes)])
-    mean_ccc = np.mean(class_wise_cccs)
-    return mean_ccc
 
 
 def calc_pearsons(preds, labels):
@@ -121,6 +85,7 @@ def write_predictions(task, full_metas, full_preds, full_labels, prediction_path
     prediction_df.to_csv(os.path.join(prediction_path, filename), index=False)
 
 
+# TODO parameter return_metas or so
 def get_predictions(model, task, data_loader, use_gpu=False):
     full_preds = []
     full_labels = []
@@ -151,6 +116,7 @@ def get_predictions(model, task, data_loader, use_gpu=False):
     return full_labels, full_preds
 
 
+# use this for personalisation prediction?
 def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=False, prediction_path=None,
              filename=None):
     losses, sizes = 0, 0
@@ -180,7 +146,7 @@ def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=
 
             preds,_ = model(features, feature_lens)
 
-            # only relevant for stress
+            # only relevant for personalisation
             feature_lens = feature_lens.detach().cpu().tolist()
             cutoff = feature_lens[0] if task == PERSONALISATION else batch_size
             if predict:

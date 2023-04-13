@@ -48,7 +48,6 @@ def get_all_training_csvs(task, feature) -> List[str]:
     for subject in tqdm(partition_to_subject['train']):
         if task == PERSONALISATION:
             csvs.append(os.path.join(feature_dir, f'{subject}.csv'))
-        # TODO Alice check if correct
         elif task == MIMIC:
             subject = subject[1:-1]
             csvs.append(os.path.join(feature_dir, f'{subject}.csv'))
@@ -70,7 +69,7 @@ def fit_normalizer(task:str, feature:str, feature_idx=2) -> StandardScaler:
     # load training subjects
     training_csvs = get_all_training_csvs(task, feature)
     if task == MIMIC:
-        print('Concatenating csvs')
+        #print('Concatenating csvs')
         df = pd.concat([pd.read_csv(training_csv) for training_csv in tqdm(training_csvs)])
     else:
         df = pd.concat([pd.read_csv(training_csv) for training_csv in training_csvs])
@@ -140,7 +139,7 @@ def load_humor_subject(feature, subject_id, normalizer) -> Tuple[List[np.ndarray
 
 def segment_personalisation(sample:pd.DataFrame, win_len, hop_len) -> List[pd.DataFrame]:
     segmented_sample = []
-    assert hop_len <= win_len and win_len >= 10
+    #assert hop_len <= win_len and win_len >= 10
 
     for s_idx in range(0, len(sample), hop_len):
         e_idx = min(s_idx + win_len, len(sample))
@@ -220,7 +219,6 @@ def load_personalisation_subject(feature, subject_id, partition, emo_dim, normal
     for i, segment in enumerate(samples):  # each segment has columns: timestamp, segment_id, features, labels
         n_emo_dims = 1
         if len(segment.iloc[:, feature_idx:-n_emo_dims].values) > 0:  # check if there are features
-            # was int(subject_id) before...
             meta = np.column_stack((np.array([subject_id] * len(segment)),
                                     segment.iloc[:, :feature_idx].values))  # video_id, timestamp, segment_id
             metas.append(meta)

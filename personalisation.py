@@ -29,13 +29,9 @@ def parse_args():
     parser.add_argument('--model_id', required=True, help='model id')
     parser.add_argument('--emo_dim', default=AROUSAL, choices=PERSONALISATION_DIMS,
                         help=f'Specify the emotion dimension, (default: {AROUSAL}).')
-    # TODO this is just for internal experiments, remove before publication
-    parser.add_argument('--random_init', action='store_true')
-    parser.add_argument('--name', type=str, default=None, help='Optional name for the new "feature set". If not given,'
-                                                               'name will be calculated from the aliases.')
-    parser.add_argument('--checkpoint_seed', required=True, help='Checkpoints to use, e.g. '
+    parser.add_argument('--checkpoint_seed', required=False, help='Checkpoints to use, e.g. '
                                                                              '101 if for model that was trained with seed 101 '
-                                                                             '(cf. output in the model directory)')
+                                                                             '(cf. output in the model directory). Not needed for --eval_personalised')
     parser.add_argument('--normalize', action='store_true',
                         help='Specify whether to normalize features (default: False).')
     parser.add_argument('--win_len', type=int, default=20,
@@ -62,7 +58,6 @@ def parse_args():
                                                            'does not exist yet). Incompatible with --predict')
     parser.add_argument('--keep_checkpoints', action='store_true', help='Set this in order *not* to delete all the '
                                                                         'personalised checkpoints')
-    # TODO add eval logic
     parser.add_argument('--eval_personalised', type=str, default=None,
                         help='Specify model which is to be evaluated; no training with this option (default: False).')
     parser.add_argument('--predict', action='store_true',
@@ -70,13 +65,22 @@ def parse_args():
                              '(default: False). Incompatible with result_csv')
 
     args = parser.parse_args()
+    if not args.eval_personalised:
+        assert args.checkpoint_seed, f'Argument --checkpoint_seed is required.'
     args.timestamp = datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M-%S")
     args.run_name = f'{args.model_id}_{args.checkpoint_seed}_personalisation_{args.timestamp}'
     args.log_file_name = args.run_name
     args.paths = {'log': os.path.join(config.LOG_FOLDER, PERSONALISATION),
                   'data': os.path.join(config.DATA_FOLDER, PERSONALISATION),
-                  'model': os.path.join(config.MODEL_FOLDER, PERSONALISATION,
-                                        args.log_file_name if not args.eval_personalised else os.path.join(args.model_id, args.eval_personalised))}
+                  'model': os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
+                                        f'{args.checkpoint_seed}_personalised_{args.timestamp}' if not args.eval_personalised else args.eval_personalised)}
+    if args.predict:
+        if args.eval_personalised:
+            args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, PERSONALISATION, 'personalised', args.emo_dim,
+                                                 args.model_id, args.eval_personalised)
+        else:
+            args.paths['predict'] = os.path.join(config.PREDICTION_FOLDER, PERSONALISATION, 'personalised', args.emo_dim,
+                                                 args.model_id, args.run_name)
     for folder in args.paths.values():
         if not os.path.exists(folder):
             os.makedirs(folder, exist_ok=True)
@@ -177,8 +181,10 @@ def get_stats(arr):
 def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False):
     all_dev_labels = []
     all_dev_preds = []
+    all_dev_ids = []
     all_test_labels = []
     all_test_preds = []
+    all_test_ids = []
     for subject_id, model_file in personalised_cps.items():
         model = torch.load(model_file, map_location=config.device)
         subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
@@ -186,11 +192,14 @@ def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str,
                                                           use_gpu=use_gpu)
         all_dev_labels.append(subj_dev_labels)
         all_dev_preds.append(subj_dev_preds)
+        all_dev_ids.extend([subject_id]*subj_dev_labels.shape[0])
+
         subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
                                                             data_loader=id2data_loaders[subject_id]['test'],
                                                             use_gpu=use_gpu)
         all_test_labels.append(subj_test_labels)
         all_test_preds.append(subj_test_preds)
+        all_test_ids.extend([subject_id]*subj_test_labels.shape[0])
     all_dev_labels = np.concatenate(all_dev_labels)
     all_dev_preds = np.concatenate(all_dev_preds)
     all_test_labels = np.concatenate(all_test_labels)
@@ -200,7 +209,10 @@ def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str,
     val_score = eval_fn(all_dev_preds, all_dev_labels)
     test_score = eval_fn(all_test_preds, all_test_labels)
 
-    return all_dev_preds, val_score, all_test_preds, test_score
+    # TODO all metas
+    dev_df = pd.DataFrame({'meta_subj_id':all_dev_ids, 'pred':all_dev_preds, 'label_gs':all_dev_labels})
+    test_df = pd.DataFrame({'meta_subj_id': all_test_ids, 'pred': all_test_preds, 'label_gs': all_test_labels})
+    return (all_dev_preds, val_score, dev_df), (all_test_preds, test_score, test_df)
 
 def create_data_loaders(data, test_ids):
     data_loaders = []
@@ -280,8 +292,10 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
     # val_score = eval_fn(all_dev_preds, all_dev_labels)
     # test_score = eval_fn(all_test_preds, all_test_labels)
 
-    _, val_score, _, test_score = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
+    v,t = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
                                                     use_gpu=use_gpu)
+    val_score = v[1]
+    test_score = t[1]
     return val_score, test_score
 
 
@@ -328,15 +342,14 @@ def random_init(model:torch.nn.Module):
 
 if __name__ == '__main__':
     args = parse_args()
-    # TODO remove this...
-    model = torch.load(args.model_file, map_location=config.device)
-    if args.random_init:
-        model = random_init(model)
+
 
     if not args.eval_personalised:
-        pers_dir = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
-                                f'{args.checkpoint_seed}_personalised_{args.timestamp}')
-        os.makedirs(pers_dir)
+        model = torch.load(args.model_file, map_location=config.device)
+        #pers_dir = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
+        #                        f'{args.checkpoint_seed}_personalised_{args.timestamp}')
+        #os.makedirs(pers_dir)
+        pers_dir = args.paths['model']
 
         eval_fn, eval_metric_str = get_eval_fn(PERSONALISATION)
         loss_fn, loss_fn_str = get_loss_fn(PERSONALISATION)
@@ -353,18 +366,30 @@ if __name__ == '__main__':
         if args.result_csv:
             log_personalisation_results(args.result_csv, params=args, metric_name=eval_metric_str, val_score=val_score,
                                         test_score=test_score)
-
+        elif args.predict:
+            _,t = eval_trained_checkpoints(
+            paths=args.paths, feature=args.feature, emo_dim=args.emo_dim, normalize=args.normalize,
+            win_len=args.win_len, hop_len=args.hop_len, cp_dir=args.paths['model'], use_gpu=args.use_gpu)
+            _,_,test_df = t
+            test_predict_csv = os.path.join(args.paths['predict'], 'predictions_test.csv')
+            test_df.to_csv(test_predict_csv, index=False)
+            print(f'Find test predictions in {args.paths["predict"]}')
         if not args.keep_checkpoints:
             rmtree(pers_dir)
 
     else:
-        dev_predictions, dev_score, test_predictions, test_score = eval_trained_checkpoints(
+        d,t = eval_trained_checkpoints(
             paths=args.paths, feature=args.feature, emo_dim=args.emo_dim, normalize=args.normalize,
             win_len=args.win_len, hop_len=args.hop_len, cp_dir=args.paths['model'], use_gpu=args.use_gpu)
-        # TODO print score
+        _, dev_score, dev_df = d
+        _, test_score, test_df = t
         print(f'[Val]: {dev_score:7.4f}')
         print(f'[Test]: {test_score:7.4f}')
-        #print(dct)
-    # TODO also return predictions above and save them if predict
-    if args.predict:
-        pass
+        if args.predict:
+            dev_predict_csv = os.path.join(args.paths['predict'], 'predictions_devel.csv')
+            dev_df.to_csv(dev_predict_csv, index=False)
+            test_predict_csv = os.path.join(args.paths['predict'], 'predictions_test.csv')
+            test_df.to_csv(test_predict_csv, index=False)
+            print(f'Find predictions in {args.paths["predict"]}')
+
+

@@ -1,7 +1,8 @@
 numpy>=1.17
 pandas
-torch == 1.8.0+cu111
+torch
 scikit-learn
 tqdm
+audmetric
 
 --find-links https://download.pytorch.org/whl/torch_stable.html

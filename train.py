@@ -10,7 +10,6 @@ from torch.utils.data import DataLoader
 
 from config import device, PERSONALISATION
 from eval import evaluate
-from model import PersonalisedModel
 
 
 def train(model, train_loader, optimizer, loss_fn, use_gpu=False):
@@ -51,8 +50,8 @@ def train(model, train_loader, optimizer, loss_fn, use_gpu=False):
     return train_loss
 
 
-def save_model(model, model_folder, current_seed):
-    model_file_name = f'model_{current_seed}.pth'
+def save_model(model, model_folder, id):
+    model_file_name = f'model_{id}.pth'
     model_file = os.path.join(model_folder, model_file_name)
     torch.save(model, model_file)
     return model_file
@@ -106,7 +105,7 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
         rmtree(temp_dir)
     os.makedirs(temp_dir)
     # current_seed maybe not the best parameter name here
-    initial_cp = save_model(model, model_folder=temp_dir, current_seed='initial')
+    initial_cp = save_model(model, model_folder=temp_dir, id='initial')
     model.train()
     subj_model_files = []
     for subject_id, data_loader in zip(subject_ids, data_loaders):
@@ -128,7 +127,7 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
             model.train()
             torch.manual_seed(seed)
             np.random.seed(seed)
-            # reshuffling
+            # reshuffling of training data
             train_loader = torch.utils.data.DataLoader(dataset=train_loader.dataset, batch_size=train_loader.batch_size,
                                                        collate_fn=train_loader.collate_fn, shuffle=True)
             _, seed_val_score, seed_model_file = train_model(model=model, task=PERSONALISATION, identifier=f'{subject_id}_{i}', data_loader=data_loader,
