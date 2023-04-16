@@ -28,7 +28,7 @@ def seed_worker(worker_id):
 
 def log_results(csv_path, params, val_results, test_results, seeds, best_idx, model_files, metric_name,
                 exclude_keys=['result_csv', 'cache', 'save', 'save_path', 'predict', 'eval_model', 'log_file_name']):
-    '''
+    """
     Logs result of a run into a csv
     :param csv_path: path to the desired csv. Appends, if csv exists, else creates it anew
     :param params: configuration of the run (parsed cli arguments)
@@ -39,7 +39,7 @@ def log_results(csv_path, params, val_results, test_results, seeds, best_idx, mo
     :param metric_name: name of the used metric
     :param exclude_keys: keys in params not to consider for logging
     :return: None
-    '''
+    """
     dct = {k:[v] for k,v in vars(params).items() if not k in exclude_keys}
     dct.update({'best_seed':seeds[best_idx]})
     dct.update({f'best_val_{metric_name}': val_results[best_idx]})

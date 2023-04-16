@@ -139,7 +139,6 @@ def load_humor_subject(feature, subject_id, normalizer) -> Tuple[List[np.ndarray
 
 def segment_personalisation(sample:pd.DataFrame, win_len, hop_len) -> List[pd.DataFrame]:
     segmented_sample = []
-    #assert hop_len <= win_len and win_len >= 10
 
     for s_idx in range(0, len(sample), hop_len):
         e_idx = min(s_idx + win_len, len(sample))
@@ -366,6 +365,10 @@ def load_personalisation_data(paths,
                               hop_len=100,
                               save=True,
                               segment_train=True):
+    """
+    Data Loading method for personalisation
+    :return tuple of lists: loaded data and IDs per test subject
+    """
     data_file_name = f'data_personalisation_2nd_stage_{feature}_{emo_dim + "_" if len(emo_dim) > 0 else ""}_{"norm_" if normalize else ""}{win_len}_' \
                      f'{hop_len}{"_seg" if segment_train else ""}.pkl'
     data_file = os.path.join(paths['data'], data_file_name)

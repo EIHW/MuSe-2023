@@ -96,89 +96,13 @@ def parse_args():
 def get_stats(arr):
     return {'mean':np.mean(arr), 'std':np.std(arr), 'min':np.min(arr), 'max':np.max(arr)}
 
-# def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False,
-#                       fallback_model=None):
-#     eval_fn, _ = get_eval_fn(PERSONALISATION)
-#
-#     all_dev_labels = []
-#     all_dev_preds = []
-#     all_test_labels = []
-#     all_test_preds = []
-#
-#     subj_dev_scores = []
-#     subj_test_scores = []
-#
-#     fb_dev_scores = [] if fallback_model else None
-#     fb_test_scores = [] if fallback_model else None
-#
-#     subject_ids = sorted(list(personalised_cps.keys()))
-#     for subject_id in subject_ids:
-#         model_file = personalised_cps[subject_id]
-#         model = torch.load(model_file, config.device)
-#         model.eval()
-#
-#         dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
-#                                                           data_loader=id2data_loaders[subject_id]['devel'],
-#                                                           use_gpu=use_gpu)
-#         subj_dev_score = eval_fn(subj_dev_preds, dev_labels)
-#         subj_dev_scores.append(subj_dev_score)
-#         test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
-#                                                           data_loader=id2data_loaders[subject_id]['test'],
-#                                                           use_gpu=use_gpu)
-#         subj_test_score = eval_fn(subj_test_preds, test_labels)
-#         subj_test_scores.append(subj_test_score)
-#
-#
-#         if fallback_model:
-#
-#             _, fb_dev_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
-#                                                           data_loader=id2data_loaders[subject_id]['devel'],
-#                                                           use_gpu=use_gpu)
-#             fb_dev_score = eval_fn(fb_dev_preds, dev_labels)
-#             fb_dev_scores.append(fb_dev_score)
-#
-#             _, fb_test_preds = get_predictions(model=fallback_model, task=PERSONALISATION,
-#                                                           data_loader=id2data_loaders[subject_id]['test'],
-#                                                           use_gpu=use_gpu)
-#             fb_test_score = eval_fn(fb_test_preds, test_labels)
-#             fb_test_scores.append(fb_test_score)
-#
-#     if not fallback_model:
-#         all_dev_scores = subj_dev_scores
-#         all_test_scores = subj_test_scores
-#     else:
-#         fallen_back =[]
-#         all_dev_scores = []
-#         all_test_scores = []
-#         for i in range(len(subj_dev_scores)):
-#             subj_better = subj_dev_scores[i] > fb_test_scores[i]
-#             all_dev_scores.append(subj_dev_scores[i] if subj_better else fb_dev_scores[i])
-#             all_test_scores.append(subj_test_scores[i] if subj_better else fb_test_scores[i])
-#             fallen_back.append(not subj_better)
-#
-#     # all_dev_labels = np.concatenate(all_dev_labels)
-#     # all_dev_preds = np.concatenate(all_dev_preds)
-#     # all_test_labels = np.concatenate(all_test_labels)
-#     # all_test_preds = np.concatenate(all_test_preds)
-#     #
-#     # eval_fn, _ = get_eval_fn(PERSONALISATION)
-#     # val_score = eval_fn(all_dev_preds, all_dev_labels)
-#     # test_score = eval_fn(all_test_preds, all_test_labels)
-#     val_score = np.mean(all_dev_scores)
-#     test_score = np.mean(all_test_scores)
-#     val_dict = {'personalised': get_stats(subj_dev_scores), 'overall':get_stats(all_dev_scores)}
-#     test_dict = {'personalised': get_stats(subj_test_scores), 'overall':get_stats(all_test_scores)}
-#     if fallback_model:
-#         val_dict.update({'fallback':get_stats(fb_dev_scores)})
-#         test_dict.update({'fallback':get_stats(fb_test_scores)})
-#     overall_dict = {'devel':val_dict, 'test':test_dict,
-#                     'individual_devel':{i:s for i,s in zip(subject_ids, all_dev_scores)},
-#                     'indvidual_test':{i:s for i,s in zip(subject_ids, all_test_scores)}}
-#     if fallback_model:
-#         overall_dict.update({'fallen_back':fallen_back})
-#     return all_dev_preds, val_score, all_test_preds, test_score, overall_dict
 
 def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str, Dict[str, DataLoader]], use_gpu=False):
+    """
+    :param personalised_cps dictionary mapping subject ids to corresponding model files
+    :param id2data_loaders dictionary mapping subject ids to their data
+    :return for development and test set: predictions, score, dataframe with predictions and gold standard
+    """
     all_dev_labels = []
     all_dev_preds = []
     all_dev_ids = []
@@ -209,12 +133,16 @@ def eval_personalised(personalised_cps:Dict[str, str], id2data_loaders:Dict[str,
     val_score = eval_fn(all_dev_preds, all_dev_labels)
     test_score = eval_fn(all_test_preds, all_test_labels)
 
-    # TODO all metas
     dev_df = pd.DataFrame({'meta_subj_id':all_dev_ids, 'pred':all_dev_preds, 'label_gs':all_dev_labels})
     test_df = pd.DataFrame({'meta_subj_id': all_test_ids, 'pred': all_test_preds, 'label_gs': all_test_labels})
     return (all_dev_preds, val_score, dev_df), (all_test_preds, test_score, test_df)
 
+
 def create_data_loaders(data, test_ids):
+    """
+    :param data list of data for every subject, where each entry is a dict with keys 'train', 'devel', 'test'
+    :param test_ids list of test subject ids
+    """
     data_loaders = []
     for subj_data in data:
         data_loader = {}
@@ -232,6 +160,9 @@ def create_data_loaders(data, test_ids):
 
 
 def eval_trained_checkpoints(paths, feature, emo_dim, normalize, win_len, hop_len, cp_dir, use_gpu):
+    """
+    Evaluate a set of checkpoints as given in paths
+    """
     data, test_ids = load_personalisation_data(paths, feature, emo_dim, normalize=normalize, win_len=win_len,
                                                hop_len=hop_len, save=True,
                                                segment_train=True)
@@ -248,20 +179,12 @@ def eval_trained_checkpoints(paths, feature, emo_dim, normalize, win_len, hop_le
 
 def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, hop_len, epochs, lr, use_gpu, loss_fn,
                 eval_fn, eval_metric_str, early_stopping_patience, reduce_lr_patience, seeds, regularization=0.0):
-    # TODO logic for when test is not available
+    """
+    Main part of the 2nd step. Take a general model and personalise it for every test subject
+    """
     data, test_ids = load_personalisation_data(paths, feature, emo_dim, normalize=normalize, win_len=win_len, hop_len=hop_len, save=True,
                               segment_train=True)
-    # data_loaders = []
-    # for subj_data in data:
-    #     data_loader = {}
-    #     for partition in subj_data.keys():
-    #         set = MuSeDataset(subj_data, partition)
-    #         batch_size = args.batch_size if partition == 'train' else 1
-    #         shuffle = True if partition == 'train' else False  # shuffle only for train partition
-    #         data_loader[partition] = torch.utils.data.DataLoader(set, batch_size=batch_size, shuffle=shuffle, num_workers=4,
-    #                                                          worker_init_fn=seed_worker, collate_fn=custom_collate_fn)
-    #     data_loaders.append(data_loader)
-    # id2data_loaders = {i:d for i,d in zip(test_ids, data_loaders)}
+
     data_loaders, id2data_loaders = create_data_loaders(data, test_ids)
 
     # subject id to personalised model cp
@@ -269,28 +192,6 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
                               lr=lr, use_gpu=use_gpu, loss_fn=loss_fn, eval_fn=eval_fn,
                                 eval_metric_str=eval_metric_str, early_stopping_patience=early_stopping_patience,
                               reduce_lr_patience=reduce_lr_patience, regularization = regularization, seeds=seeds)
-    # all_dev_labels = []
-    # all_dev_preds = []
-    # all_test_labels = []
-    # all_test_preds = []
-    # for subject_id, model_file in personalised_cps.items():
-    #     model = torch.load(model_file)
-    #     subj_dev_labels, subj_dev_preds = get_predictions(model=model, task=PERSONALISATION,
-    #                                                       data_loader=id2data_loaders[subject_id]['devel'], use_gpu=use_gpu)
-    #     all_dev_labels.append(subj_dev_labels)
-    #     all_dev_preds.append(subj_dev_preds)
-    #     subj_test_labels, subj_test_preds = get_predictions(model=model, task=PERSONALISATION,
-    #                                                         data_loader=id2data_loaders[subject_id]['test'], use_gpu=use_gpu)
-    #     all_test_labels.append(subj_test_labels)
-    #     all_test_preds.append(subj_test_preds)
-    # all_dev_labels = np.concatenate(all_dev_labels)
-    # all_dev_preds = np.concatenate(all_dev_preds)
-    # all_test_labels = np.concatenate(all_test_labels)
-    # all_test_preds = np.concatenate(all_test_preds)
-    #
-    # eval_fn, _ = get_eval_fn(PERSONALISATION)
-    # val_score = eval_fn(all_dev_preds, all_dev_labels)
-    # test_score = eval_fn(all_test_preds, all_test_labels)
 
     v,t = eval_personalised(personalised_cps=personalised_cps, id2data_loaders=id2data_loaders,
                                                     use_gpu=use_gpu)
@@ -301,7 +202,7 @@ def personalise(model, feature, emo_dim, temp_dir, paths, normalize, win_len, ho
 
 def log_personalisation_results(csv_path, params, val_score, test_score, metric_name,
                 exclude_keys=['result_csv', 'cache', 'save', 'save_path', 'predict', 'eval_model', 'log_file_name']):
-    '''
+    """
     Logs result of a run into a csv
     :param csv_path: path to the desired csv. Appends, if csv exists, else creates it anew
     :param params: configuration of the run (parsed cli arguments)
@@ -312,15 +213,10 @@ def log_personalisation_results(csv_path, params, val_score, test_score, metric_
     :param metric_name: name of the used metric
     :param exclude_keys: keys in params not to consider for logging
     :return: None
-    '''
+    """
     dct = {k:[v] for k,v in vars(params).items() if not k in exclude_keys}
     dct.update({f'val_{metric_name}': val_score})
     dct.update({f'test_{metric_name}':test_score})
-    #dct.update({f'mean_val_{metric_name}': np.mean(np.array(val_results))})
-    #dct.update({f'std_val_{metric_name}': np.std(np.array(val_results))})
-    #dct.update({f'mean_test_{metric_name}': np.mean(np.array(test_results))})
-    #dct.update({f'std_test_{metric_name}': np.std(np.array(test_results))})
-    ##dct.update({'model_file':model_files[best_idx]})
     df = pd.DataFrame(dct)
 
     # make sure the directory exists
@@ -346,15 +242,13 @@ if __name__ == '__main__':
 
     if not args.eval_personalised:
         model = torch.load(args.model_file, map_location=config.device)
-        #pers_dir = os.path.join(config.MODEL_FOLDER, PERSONALISATION, args.model_id,
-        #                        f'{args.checkpoint_seed}_personalised_{args.timestamp}')
-        #os.makedirs(pers_dir)
+
         pers_dir = args.paths['model']
 
         eval_fn, eval_metric_str = get_eval_fn(PERSONALISATION)
         loss_fn, loss_fn_str = get_loss_fn(PERSONALISATION)
         seeds = list(range(args.seed, args.seed + args.n_seeds))
-        # TODO predict logic must be in personalise
+
         val_score, test_score = personalise(model=model, feature=args.feature, emo_dim=args.emo_dim, temp_dir=pers_dir, paths=args.paths,
                     normalize=args.normalize, win_len=args.win_len, hop_len=args.hop_len, epochs=args.epochs, lr=args.lr,
                     use_gpu=args.use_gpu, loss_fn=loss_fn,

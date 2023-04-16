@@ -64,13 +64,9 @@ def parse_args():
                         help='Specify whether to use gpu for training (default: False).')
     parser.add_argument('--cache', action='store_true',
                         help='Specify whether to cache data as pickle file (default: False).')
-    # TODO is this even used?
-    parser.add_argument('--save_path', type=str, default='preds',
-                        help='Specify path where to save the predictions (default: preds).')
     parser.add_argument('--predict', action='store_true',
                         help='Specify when no test labels are available; test predictions will be saved '
                              '(default: False). Incompatible with result_csv')
-    # TODO is this even used?
     parser.add_argument('--regularization', type=float, required=False, default=0.0,
                         help='L2-Penalty')
     # evaluation only arguments

@@ -36,7 +36,7 @@ def calc_auc(preds, labels):
     return auc(fpr, tpr)
 
 
-def write_reaction_predictions(full_metas, full_preds, full_labels, csv_dir, filename):
+def write_mimic_predictions(full_metas, full_preds, full_labels, csv_dir, filename):
     meta_arr = np.row_stack(full_metas).squeeze()
     preds_arr = np.row_stack(full_preds)
     labels_arr = np.row_stack(full_labels)
@@ -59,7 +59,7 @@ def write_predictions(task, full_metas, full_preds, full_labels, prediction_path
 
     if task == MIMIC:
         # TODO adapt
-        return write_reaction_predictions(full_metas, full_preds, full_labels, prediction_path, filename)
+        return write_mimic_predictions(full_metas, full_preds, full_labels, prediction_path, filename)
 
     metas_flat = []
     for meta in full_metas:
@@ -85,7 +85,6 @@ def write_predictions(task, full_metas, full_preds, full_labels, prediction_path
     prediction_df.to_csv(os.path.join(prediction_path, filename), index=False)
 
 
-# TODO parameter return_metas or so
 def get_predictions(model, task, data_loader, use_gpu=False):
     full_preds = []
     full_labels = []
@@ -116,7 +115,6 @@ def get_predictions(model, task, data_loader, use_gpu=False):
     return full_labels, full_preds
 
 
-# use this for personalisation prediction?
 def evaluate(task, model, data_loader, loss_fn, eval_fn, use_gpu=False, predict=False, prediction_path=None,
              filename=None):
     losses, sizes = 0, 0

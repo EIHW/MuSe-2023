@@ -101,6 +101,12 @@ def train_model(task, model, data_loader, epochs, lr, model_path, identifier, us
 
 def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataLoader]], subject_ids, epochs, lr, use_gpu, loss_fn, eval_fn,
                 eval_metric_str, early_stopping_patience, reduce_lr_patience, seeds, regularization=0.0):
+    """
+    :param model initial, general model
+    :param temp_dir: model to save personalised checkpoints to
+    :param data_loaders: data loaders per subject
+    :param subject_ids: corresponding subject IDs
+    """
     if os.path.exists(temp_dir):
         rmtree(temp_dir)
     os.makedirs(temp_dir)
@@ -135,7 +141,6 @@ def train_personalised_models(model, temp_dir, data_loaders:List[Dict[str, DataL
                                                              eval_fn=eval_fn, eval_metric_str=eval_metric_str,
                                                              early_stopping_patience=early_stopping_patience,
                                                              reduce_lr_patience=reduce_lr_patience, regularization=regularization)
-
 
             if seed_val_score > best_val_score:
                 best_val_score = seed_val_score
