@@ -1,6 +1,5 @@
 # MuSe-2023 Baseline Model: GRU Regressor
 
-TODO ADAPT BEFORE OFFICIAL COMMIT
 
 [Homepage](https://www.muse-challenge.org) || [Baseline Paper](#)
 
