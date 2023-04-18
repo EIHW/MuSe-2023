@@ -6,7 +6,7 @@
 
 ## Sub-challenges and Results 
 For details, please see the [Baseline Paper](#). If you want to sign up for the challenge, please fill the form 
-[here](https://www.muse-challenge.org/challenge/participation) for MuSe-Humor and MuSe-Stress. For MuSe-Reaction, please contact competitions \[at\] hume.ai 
+[here](https://www.muse-challenge.org/challenge/participate) for MuSe-Humor and MuSe-Stress. For MuSe-Reaction, please contact competitions \[at\] hume.ai 
 
 * MuSe-Mimic: predicting the intensity of three emotions (Approval, Disappointment, Uncertainty). 
  *Official baseline* : **.4727** mean Pearson's correlation over all three classes.
