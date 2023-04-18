@@ -2,11 +2,11 @@
 
 TODO ADAPT BEFORE OFFICIAL COMMIT
 
-[Homepage](https://www.muse-challenge.org) || [Baseline Paper](http://dx.doi.org/10.13140/RG.2.2.33203.91681)
+[Homepage](https://www.muse-challenge.org) || [Baseline Paper](#)
 
 
 ## Sub-challenges and Results 
-For details, please see the [Baseline Paper](http://dx.doi.org/10.13140/RG.2.2.33203.91681). If you want to sign up for the challenge, please fill the form 
+For details, please see the [Baseline Paper](#). If you want to sign up for the challenge, please fill the form 
 [here](https://www.muse-challenge.org/challenge/participation) for MuSe-Humor and MuSe-Stress. For MuSe-Reaction, please contact competitions \[at\] hume.ai 
 
 * MuSe-Mimic: predicting the intensity of three emotions (Approval, Disappointment, Uncertainty). 
@@ -82,7 +82,7 @@ Then, ``late_fusion.py`` merges these predictions:
 
 ##  Citation:
 
-The MuSe2023 baseline paper is only available in a preliminary version as of now.
+The MuSe2023 baseline paper is only available in a preliminary version as of now: []()
 
 MuSe 2022 baseline paper:
 
