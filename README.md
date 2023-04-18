@@ -1,11 +1,11 @@
 # MuSe-2023 Baseline Model: GRU Regressor
 
 
-[Homepage](https://www.muse-challenge.org) || [Baseline Paper](#)
+[Homepage](https://www.muse-challenge.org) || [Baseline Paper](https://www.researchgate.net/publication/370100318_The_MuSe_2023_Multimodal_Sentiment_Analysis_Challenge_Mimicked_Emotions_Cross-Cultural_Humour_and_Personalisation)
 
 
 ## Sub-challenges and Results 
-For details, please see the [Baseline Paper](#). If you want to sign up for the challenge, please fill the form 
+For details, please see the [Baseline Paper](https://www.researchgate.net/publication/370100318_The_MuSe_2023_Multimodal_Sentiment_Analysis_Challenge_Mimicked_Emotions_Cross-Cultural_Humour_and_Personalisation). If you want to sign up for the challenge, please fill the form 
 [here](https://www.muse-challenge.org/challenge/participate) for MuSe-Humor and MuSe-Stress. For MuSe-Reaction, please contact competitions \[at\] hume.ai 
 
 * MuSe-Mimic: predicting the intensity of three emotions (Approval, Disappointment, Uncertainty). 
