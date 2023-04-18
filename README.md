@@ -81,7 +81,7 @@ Then, ``late_fusion.py`` merges these predictions:
 
 ##  Citation:
 
-The MuSe2023 baseline paper is only available in a preliminary version as of now: []()
+The MuSe2023 baseline paper is only available in a preliminary version as of now: [https://www.researchgate.net/publication/359875358_The_MuSe_2022_Multimodal_Sentiment_Analysis_Challenge_Humor_Emotional_Reactions_and_Stress](https://www.researchgate.net/publication/359875358_The_MuSe_2022_Multimodal_Sentiment_Analysis_Challenge_Humor_Emotional_Reactions_and_Stress)
 
 MuSe 2022 baseline paper:
 
