@@ -14,7 +14,7 @@ from data_parser import load_data
 from dataset import MuSeDataset, custom_collate_fn
 from eval import evaluate, calc_ccc, calc_auc, mean_pearsons
 from loss import CCCLoss, BCELossWrapper, MSELossWrapper
-from model import Model, TRANSFORMER_MODEL, RNN_MODEL
+from model import Model
 from train import train_model
 from utils import Logger, seed_worker, log_results
 
@@ -35,7 +35,6 @@ def parse_args():
                         help='Specify the window length for segmentation (default: 200 frames).')
     parser.add_argument('--hop_len', type=int, default=100,
                         help='Specify the hop length to for segmentation (default: 100 frames).')
-    #parser.add_argument('--model_type', choices=[RNN_MODEL, TRANSFORMER_MODEL], default=RNN_MODEL)
     parser.add_argument('--model_dim', type=int, default=64,
                         help='Specify the number of hidden states in the RNN (default: 64).')
     parser.add_argument('--rnn_n_layers', type=int, default=1,
@@ -218,7 +217,6 @@ def main(args):
 if __name__ == '__main__':
     args = parse_args()
 
-    #if args.model_type == RNN_MODEL:
     args.log_file_name = '{}_{}_[{}]_[{}]_[{}_{}_{}_{}]_[{}_{}]'.format('RNN',
         datetime.now(tz=tz.gettz()).strftime("%Y-%m-%d-%H-%M"), args.feature, args.emo_dim,
         args.model_dim, args.rnn_n_layers, args.rnn_bi, args.d_fc_out, args.lr, args.batch_size) if args.task == PERSONALISATION else \
